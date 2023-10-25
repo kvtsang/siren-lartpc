@@ -1,0 +1,40 @@
+train:
+    max_epochs: 5
+    save_every_epochs: 1
+    optimizer_class: Adam
+    optimizer_param:
+        lr: 5.e-5
+    load_optimizer_state: True
+photonlib:
+    filepath: plib.h5
+logger:
+    dir_name: logs
+    file_name: log.csv
+    log_every_nstep: 37
+    analysis:
+        vis_bias:
+            threshold: 4.5e-5
+model:
+    network:
+        in_features: 3
+        hidden_features: 512
+        hidden_layers: 5
+        out_features: 180
+    weight_file: ""
+    output_scale:
+        fix: True
+transform_vis:
+    vmax: 1.0
+    eps: 1.e-7
+    sin_out: True
+data:
+    dataset:
+        weight:
+            method: "vis"
+            threshold: 1.e-8
+            factor: 1.e+6
+    loader:
+        batch_size: 60676
+        num_workers: 2
+        shuffle: True
+        pin_memory: True
