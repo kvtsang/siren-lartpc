@@ -25,11 +25,11 @@ You need two items:
 * a data file for Photon Library
   * You can train `siren` given a Photon Library data file. Follow the instructions [here](https://github.com/drinkingkazu/photonlib) and download the photon library file.   
 * a configuration file to run the training script
-  * You can prepare by yourself or use an example provided in this repository at `siren/configs` directory. 
+  * You can prepare by yourself or use an example provided in this repository at `slar/configs` directory. 
 
 Example configuration files can be found from the terminal:
 ```
-python3 -c "from siren.utils import get_config;print(get_config('icarus_train'))"
+python3 -c "from slar.utils import get_config;print(get_config('icarus_train'))"
 ```
 
 
