@@ -90,7 +90,7 @@ class CSVLogger:
         
         for key, kwargs in log_cfg.get('analysis',dict()).items():
             print('[CSVLogger] adding analysis function:',key)
-            self._analysis_dict[key] = partial(getattr(importlib.import_module('siren.analysis'),key), **kwargs)
+            self._analysis_dict[key] = partial(getattr(importlib.import_module('slar.analysis'),key), **kwargs)
         
     @property
     def logfile(self):
