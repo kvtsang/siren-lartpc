@@ -9,25 +9,25 @@ class SineLayer(nn.Module):
     
     def __init__(self, in_features, out_features, bias=True,
                  is_first=False, omega_0=30):
-    '''
-    Parameters
-    ----------
-    in_features : int
-        The number of input features
-    out_features : int
-        The number of outputs to be predicted
-    bias : bool
-        The bias argument for torch.nn.Linear
-    is_first : bool
-        If True, omega_0 is a frequency factor which simply multiplies the activations before the
-        nonlinearity. If is_first=False, then the weights will be divided by omega_0 so as to keep 
-        the magnitude of activations constant, but boost gradients to the weight matrix (see 
-        supplement Sec. 1.5 in the original siren paper).
-    omega_0 : float
-        A multiplicative factor to the linear layer's output before applying sin function. For the
-        intermediate layers, the weights are divided by omega_0. See the siren paper sec. 3.2 and
-        the supplement Sec 1.5.
-    '''
+        '''
+        Parameters
+        ----------
+        in_features : int
+            The number of input features
+        out_features : int
+            The number of outputs to be predicted
+        bias : bool
+            The bias argument for torch.nn.Linear
+        is_first : bool
+            If True, omega_0 is a frequency factor which simply multiplies the activations before the
+            nonlinearity. If is_first=False, then the weights will be divided by omega_0 so as to keep 
+            the magnitude of activations constant, but boost gradients to the weight matrix (see 
+            supplement Sec. 1.5 in the original siren paper).
+        omega_0 : float
+            A multiplicative factor to the linear layer's output before applying sin function. For the
+            intermediate layers, the weights are divided by omega_0. See the siren paper sec. 3.2 and
+            the supplement Sec 1.5.
+        '''
         super().__init__()
         self.omega_0 = omega_0
         self.is_first = is_first
@@ -71,26 +71,26 @@ class Siren(nn.Module):
 
     def __init__(self, in_features, hidden_features, hidden_layers, out_features, outermost_linear=False, 
                  first_omega_0=30, hidden_omega_0=30.):
-    '''
-    Constructor
+        '''
+        Constructor
 
-    Parameters
-    ----------
-    in_features : int
-        The number of input features
-    hidden_features : int
-        The number of neurons in the intermediate layers
-    hidden_layers : int
-        The number of intermediate layers
-    out_features : int
-        The number of outputs to be predicted
-    outermost_linear: bool
-        If True, the final layer does not apply a sin activation function
-    first_omega_0 : float
-        The omega_0 parameter for the first SineLayer
-    hidden_omega_0 : float
-        The omega_0 parameter for the intermediate layers
-    '''
+        Parameters
+        ----------
+        in_features : int
+            The number of input features
+        hidden_features : int
+            The number of neurons in the intermediate layers
+        hidden_layers : int
+            The number of intermediate layers
+        out_features : int
+            The number of outputs to be predicted
+        outermost_linear: bool
+            If True, the final layer does not apply a sin activation function
+        first_omega_0 : float
+            The omega_0 parameter for the first SineLayer
+        hidden_omega_0 : float
+            The omega_0 parameter for the intermediate layers
+        '''
         super().__init__()
         
         print(f'[Siren] {in_features} in => {out_features} out, hidden {hidden_features} features {hidden_layers} layers')
