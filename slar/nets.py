@@ -23,24 +23,35 @@ class SirenVis(Siren):
     Siren class implementation for LArTPC optical photon transport
     '''
     
-    def __init__(self, cfg, ckpt_file=None):
+    def __init__(self, cfg : dict, ckpt_file : str = None):
         '''
         Constructor takes two different modes depending on the arguments.
 
-        Mode 1: built entirely from the configuration file
-            - This mode is taken if both ckpt_file and cfg['model']['ckpt_file'] are None
-            - The model constructs all attributes based on the configuration file. In particular,
-              this includes the function input coordinate information (self._meta), visibility
-              forward and inverse transformation functions (self._xform_vis, self._inv_xform_vis),
-              a flag to apply sigmoid on the output of Siren (self._do_hardsigmoid), and the scaling
-              factor applied to each visibility (self.scale).
+        Mode 1 : built entirely from the configuration file
+            
+            This mode is taken if both ckpt_file and cfg['model']['ckpt_file'] are None
+            
+            The model constructs all attributes based on the configuration file. In particular,
+            this includes the function input coordinate information (self._meta), visibility
+            forward and inverse transformation functions (self._xform_vis, self._inv_xform_vis),
+            a flag to apply sigmoid on the output of Siren (self._do_hardsigmoid), and the scaling
+            factor applied to each visibility (self.scale).
 
         Mode 2: load everything but the network architecture from the configuration file
-            - This mode is enabled if either ckpt_file (1st priority) or cfg['model']['ckpt_file']
-              (2nd priority) is provided.
-            - Other than the model architecture, all attributes are loaded from the ckpt_file.
-              This is to ensure the configuration used for training, and hence for the model stored
-              in the ckpt_file, to remain the same after loading the state. 
+            
+            This mode is enabled if either ckpt_file (1st priority) or cfg['model']['ckpt_file']
+            (2nd priority) is provided.
+            
+            Other than the model architecture, all attributes are loaded from the ckpt_file.
+            This is to ensure the configuration used for training, and hence for the model stored
+            in the ckpt_file, to remain the same after loading the state. 
+
+        Parameters
+        ----------
+        cfg : dict
+            Configuration parameters
+        ckpt_file : str
+            Checkpoint file. If provided, ignores some parameters in cfg. See the explanation above.
         '''
 
         siren_cfg = cfg['model']
@@ -73,9 +84,11 @@ class SirenVis(Siren):
     def meta(self):
         '''
         Access photonlib.meta.AABox that stores the volume definition (xyz range) for this model.
-        Try print(meta.ranges).
-        Return:
-            meta (photonlib.meta.AABox instance)
+
+        Returns
+        -------
+        AABox
+            The volume definition for this model.
         '''
         return self._meta
 
@@ -83,12 +96,18 @@ class SirenVis(Siren):
     def visibility(self, x):
         '''
         A function meant for analysis/inference (not for training) that returns
-            the visibilities for all PMTs given the position(s) in x. Note x is not 
-            a normalized coordinate.
-        Input:
-            x (torch.Tensor): A (or an array of) 3D point in the absolute coordinate
-        Return:
-            A torch.Tensor instance holding the visibilities in linear scale for the position(s) x.
+        the visibilities for all PMTs given the position(s) in x. Note x is not 
+        a normalized coordinate.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            A (or an array of) 3D point in the absolute coordinate
+
+        Returns
+        -------
+        torch.Tensor
+            Holds the visibilities in linear scale for the position(s) x.
         '''
 
         out = self(self.meta.norm_coord(x))
@@ -99,12 +118,18 @@ class SirenVis(Siren):
     def forward(self, x):
         '''
         A function meant for training. The input position(s) x is assumed to be normalized
-            in the range of -1 to 1 along each axis. The normalization is done within the 
-            dataset class (see io.PhotonLibDataset).
-        Input:
-            x (torch.Tensor): A (or an array of) 3D point in the normalized coordinate
-        Returns:
-            A torch.Tensor instance holding the visibilities in log-scale for the position(s) x.
+        in the range of -1 to 1 along each axis. The normalization is done within the 
+        dataset class (see io.PhotonLibDataset).
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            A (or an array of) 3D point in the normalized coordinate
+
+        Returns
+        -------
+        torch.Tensor
+            Holds the visibilities in log-scale for the position(s) x.
         '''
 
         out = super().forward(x)
@@ -118,6 +143,19 @@ class SirenVis(Siren):
 
 
     def save_state(self, filename, opt=None, epoch=0):
+        '''
+        Stores the network model and optimizer (and some hyper-) parameters to a binary file.
+
+
+        Parameters
+        ----------        
+        filename : str
+            The name of checkpoint file to be stored.
+        opt : torch.optim.Optimizer
+            The optimizer instance to store the optimizer state in the same file.
+        epoch : float
+            The epoch count of training.
+        '''
         
         state_dict=dict(epoch = epoch,
                         state_dict  = self.state_dict(),
@@ -138,6 +176,15 @@ class SirenVis(Siren):
 
 
     def load_state(self, model_path):
+        '''
+        Loads the network model and optimizer (and some hyper-) parameters from a binary file.
+
+        Parameters
+        ----------
+        model_path : str
+            The checkpoint file name from which parameter values are loaded.
+
+        '''
 
         iteration = 0
         print('[SirenVis] loading the state',model_path)

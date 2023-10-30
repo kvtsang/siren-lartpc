@@ -9,26 +9,34 @@ from slar.utils import CSVLogger, get_device
 import torch
 from torch.utils.data import DataLoader
 
-def train(cfg):
+def train(cfg : dict):
     '''
     A function to run an optimization loop for SirenVis model.
     Configuration specific to this function is "train" at the top level.
 
-    train:
-        max_epochs (int): the maximum number of epochs before stopping training
+    Parameters
+    ----------
+    max_epochs : int
+        The maximum number of epochs before stopping training
 
-        max_iterations (int): the maximum number of iterations before stopping training
+    max_iterations : int
+        The maximum number of iterations before stopping training
 
-        save_every_epochs (int): a period in epochs to store the network state
+    save_every_epochs : int
+        A period in epochs to store the network state
 
-        save_every_iterations (int): a period in iterations to store the network state
+    save_every_iterations : int
+        A period in iterations to store the network state
 
-        optimizer_class (str): an optimizer class name to train SirenVis
+    optimizer_class : str
+        An optimizer class name to train SirenVis
 
-        optimizer_param (dict): optimizer constructor arguments
+    optimizer_param : dict
+        Optimizer constructor arguments
 
-        resume (bool): if True, and if a checkopint file is provided for the model,
-            resume training with the optimizer state restored from the last checkpoint step.
+    resume : bool
+        If True, and if a checkopint file is provided for the model, resume training 
+        with the optimizer state restored from the last checkpoint step.
 
     '''
 
