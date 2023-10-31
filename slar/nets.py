@@ -2,10 +2,8 @@ import torch
 import numpy as np
 import tqdm
 
-from photonlib import AABox, PhotonLib
 from slar.base import Siren
 from slar.transform import partial_xform_vis
-from photonlib import VoxelMeta
 
 class WeightedL2Loss(torch.nn.Module):
     '''
@@ -71,6 +69,7 @@ class SirenVis(Siren):
             return
 
         # create meta
+        from photonlib import AABox
         self._meta = AABox.load(cfg['photonlib']['filepath'])
 
         # transform functions
@@ -108,7 +107,7 @@ class SirenVis(Siren):
         return next(self.parameters()).device  
 
 
-    def to_plib(self, meta : VoxelMeta, batch_size : int = 0, device : torch.device = 'cpu'):
+    def to_plib(self, meta, batch_size : int = 0, device : torch.device = 'cpu'):
         '''
         Create a PhotonLib instance
 
@@ -133,6 +132,7 @@ class SirenVis(Siren):
         '''
 
         #pts=torch.cartesian_prod(*(meta.bin_centers)).to(self.device)
+        from photonlib import PhotonLib
 
         pts = meta.voxel_to_coord(torch.arange(len(meta)))
         
@@ -255,6 +255,7 @@ class SirenVis(Siren):
 
             checkpoint = torch.load(f, map_location='cpu')            
 
+            from photonlib import AABox
             self._meta = AABox(checkpoint['aabox_ranges'])
 
             self._xform_cfg = checkpoint['xform_cfg']

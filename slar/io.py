@@ -1,7 +1,6 @@
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from photonlib import PhotonLib
 from slar.transform import partial_xform_vis
 
 class PhotonLibDataset(Dataset):
@@ -27,6 +26,7 @@ class PhotonLibDataset(Dataset):
             model configuration. Takes parameters for a function to transform visibilities to
             a log scale, and also the loss weighting scheme and parameters.
         '''
+        from photonlib import PhotonLib
         self.plib = PhotonLib.load(cfg)
         
         # tranform visiblity in pseudo-log scale (default: False)
