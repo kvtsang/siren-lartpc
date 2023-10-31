@@ -1,9 +1,11 @@
 import torch
 import numpy as np
+import tqdm
 
-from photonlib.meta import AABox
+from photonlib import AABox, PhotonLib
 from slar.base import Siren
 from slar.transform import partial_xform_vis
+from photonlib import VoxelMeta
 
 class WeightedL2Loss(torch.nn.Module):
     '''
@@ -93,6 +95,66 @@ class SirenVis(Siren):
         return self._meta
 
 
+    @property
+    def device(self):
+        '''
+        Access the device this model is on. This function assumes all parameters are on the same device.
+
+        Returns
+        -------
+        torch.device
+            The device ID where this model instance resides on
+        '''
+        return next(self.parameters()).device  
+
+
+    def to_plib(self, meta : VoxelMeta, batch_size : int = 0, device : torch.device = 'cpu'):
+        '''
+        Create a PhotonLib instance
+
+        Parameters
+        ----------
+        meta : VoxelMeta
+            The voxel definition. Usually obtained from a PhotonLib instance.
+        batch_size : int
+            If specified, the forward inference will be performed using this baatch size.
+            If unspecified, the inference will be performed for all voxels at once.
+            The latter could result in CUDA out-of-memory error if this siren is on GPU
+            and the GPU does not have enough memory to process all voxels at once.
+        device : torch.device
+            The device on which the return tensor will be placed at.
+
+        Returns
+        -------
+        PhotonLib
+            A new PhotonLib instance with the VoxelMeta from the input and the visibility
+            map filled using this Siren.
+
+        '''
+
+        #pts=torch.cartesian_prod(*(meta.bin_centers)).to(self.device)
+
+        pts = meta.voxel_to_coord(torch.arange(len(meta)))
+        
+        with torch.no_grad():
+            
+            if batch_size is None:
+                return PhotonLib(meta, self.visibility(pts))
+            
+            batch_size = min(batch_size, len(meta))
+            ctr = int(np.ceil(len(meta)/batch_size))
+            vis = []
+            for i in tqdm.tqdm(range(ctr)):
+                start = i * batch_size
+                end   = (i+1) * batch_size
+                
+                batch_pts = pts[start:end]
+                batch_vis = self.visibility(batch_pts)
+                vis.append(batch_vis)
+                
+            return PhotonLib(meta, torch.cat(vis).to(device))
+
+
     def visibility(self, x):
         '''
         A function meant for analysis/inference (not for training) that returns
@@ -109,8 +171,9 @@ class SirenVis(Siren):
         torch.Tensor
             Holds the visibilities in linear scale for the position(s) x.
         '''
+        device = x.device 
 
-        out = self(self.meta.norm_coord(x))
+        out = self(self.meta.norm_coord(x).to(self.device)).to(device)
 
         return self._inv_xform_vis(out)
 

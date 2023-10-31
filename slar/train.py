@@ -47,6 +47,8 @@ def train(cfg : dict):
     iteration_ctr = 0
     epoch_ctr = 0 
 
+    # Create necessary pieces: the model, optimizer, loss, logger.
+    # Load the states if this is resuming.
     net = SirenVis(cfg).to(DEVICE)
     ds = PhotonLibDataset(cfg)
     dl = DataLoader(ds, **cfg['data']['loader'])    
@@ -59,13 +61,19 @@ def train(cfg : dict):
     logger = CSVLogger(cfg)
     logdir = logger.logdir
 
+    # Set the control parameters for the training loop
     train_cfg = cfg.get('train',dict())
     epoch_max = train_cfg.get('max_epochs',int(1e20))
     iteration_max = train_cfg.get('max_iterations',int(1e20))
     save_every_iterations = train_cfg.get('save_every_iterations',-1)
     save_every_epochs = train_cfg.get('save_every_epochs',-1)  
     print(f'[train] train for max iterations {iteration_max} or max epochs {epoch_max}')
+
+    # Store configuration
+    with open(os.path.join(logdir,'train_cfg.yaml'), 'w') as f:
+        yaml.safe_dump(cfg, f)
     
+    # Start the training loop
     t0=time.time()
     twait=time.time()
     stop_training = False
@@ -74,28 +82,32 @@ def train(cfg : dict):
         for batch_idx, data in enumerate(tqdm(dl,desc='Epoch %-3d' % epoch_ctr)):
             iteration_ctr += 1
             
+            # Input data prep
             x       = data['position'].to(DEVICE)
             target  = data['value'].to(DEVICE)
             weights = data['weight'].to(DEVICE)
 
             twait = time.time()-twait
-            
+            # Running hte model, compute the loss, back-prop gradients to optimize.
             ttrain = time.time()
-            pred   = net(x)                
+            pred   = net(x)
             loss   = criterion(pred, target, weights)
             opt.zero_grad()
             loss.backward()
             opt.step()
             ttrain = time.time()-ttrain
             
+            # Log training parameters
             logger.record(['iter','epoch','loss','ttrain','twait'],
                           [iteration_ctr, epoch_ctr, loss.item(),ttrain,twait])
             twait = time.time()
             
+            # Step the logger
             target_linear  = ds.inv_xform_vis(target)
             pred_linear = ds.inv_xform_vis(pred)
             logger.step(iteration_ctr, target_linear, pred_linear)
                 
+            # Save the model parameters if the condition is met
             if save_every_iterations > 0 and iteration_ctr % save_every_iterations == 0:
                 filename = os.path.join(logdir,'iteration-%06d-epoch-%04d.ckpt' % (iteration_ctr,epoch_ctr))
                 net.save_state(filename,opt,iteration_ctr)
