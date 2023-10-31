@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 import time
+import yaml
 from slar.io import PhotonLibDataset
 from slar.nets import SirenVis, WeightedL2Loss
 from slar.optimizers import optimizer_factory
