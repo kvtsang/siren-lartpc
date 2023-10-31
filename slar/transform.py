@@ -2,11 +2,18 @@ import torch
 from functools import partial
 
 def xform_vis(x, vmax=1, eps=1e-7, sin_out=False):
-    '''
+    r'''
     Function to transform a linear visibility value to a log-scale.
     The log-scale is defined in the range 0 to 1.0. These edge values correspond to the
-    range limit [eps,vmax] in the linear scale. If sin_out is True, this is shifted and 
-    scaled to fit [-1,+1].
+    range limit [eps,vmax] in the linear scale. 
+
+    .. math::
+        y = (log10(x+eps) - log10(eps)) / (log10(vmax+eps) - log10(eps))
+
+    If sin_out is True, this is shifted and scaled to fit [-1,+1].
+
+    .. math::
+        y = 2*y - 1
 
 
     Parameters
