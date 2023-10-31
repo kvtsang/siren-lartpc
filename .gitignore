@@ -6,4 +6,6 @@ _skbuild
 *.root
 *.csv
 *.ipynb
+*.html
 __pycache__
+docs/build

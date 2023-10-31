@@ -7,15 +7,27 @@ from slar.transform import partial_xform_vis
 class PhotonLibDataset(Dataset):
     """
     PhotonLibrary in the form of torch Dataset for training Siren.
-    Useful attributes:
-      - plib ... PhotonLib instance
-      - visibilities ... 1D array of visibility per voxel (in log scale if transform is enabled)
-      - positions ... 1D array of a normalized (in the range -1 to 1 along each axis) position per voxel
+
+    Useful attributes
+        plib
+            PhotonLib instance
+        visibilities
+            1D array of visibility per voxel (in log scale if transform is enabled)
+        positions
+            1D array of a normalized (in the range -1 to 1 along each axis) position per voxel
     """
     
     def __init__(self, cfg):
-        
-        self.plib = PhotonLib.load(**cfg.get('photonlib',dict()))
+        '''
+        Constructor
+
+        Parameters
+        ----------
+        cfg : dict
+            model configuration. Takes parameters for a function to transform visibilities to
+            a log scale, and also the loss weighting scheme and parameters.
+        '''
+        self.plib = PhotonLib.load(cfg)
         
         # tranform visiblity in pseudo-log scale (default: False)
         xform_params = cfg.get('transform_vis')
