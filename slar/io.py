@@ -1,20 +1,12 @@
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from photonlib import PhotonLib
 from slar.transform import partial_xform_vis
 
 class PhotonLibDataset(Dataset):
     """
     PhotonLibrary in the form of torch Dataset for training Siren.
 
-    Useful attributes
-        plib
-            PhotonLib instance
-        visibilities
-            1D array of visibility per voxel (in log scale if transform is enabled)
-        positions
-            1D array of a normalized (in the range -1 to 1 along each axis) position per voxel
     """
     
     def __init__(self, cfg):
@@ -26,7 +18,26 @@ class PhotonLibDataset(Dataset):
         cfg : dict
             model configuration. Takes parameters for a function to transform visibilities to
             a log scale, and also the loss weighting scheme and parameters.
+
+        Configuration
+        -------------
+        weight.method : str
+            Currently only supported mode is "vis" (stands for visibility-based weighting).
+            This means the high visibility voxels weights higher. The more the model makes
+            mistakes at high visibility voxels, the more it gets penalized (i.e. it guides
+            the model to learn high visibility voxels more). The logic behind is that the 
+            higher visibility voxels are more rare compred to lower visibility voxels.
+            Without weighting, the model can get high accuracy by simply predicting all 
+            voxels are dark.
+
+        weight.factor : float
+            A scale-factor to be multiplied to the visibility value.
+
+        weight.threshold : float
+            The voxels with weights (=visibility * weight.factor) below this threshold value
+            will have its weighting factor set to 1.0. 
         '''
+        from photonlib import PhotonLib
         self.plib = PhotonLib.load(cfg)
         
         # tranform visiblity in pseudo-log scale (default: False)
