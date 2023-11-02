@@ -2,39 +2,60 @@
 import torch
 import yaml
 import fire
+import os
 from slar.train import train
+from slar.utils import list_config, load_config
 
 def main(config_file,device=None,lr=None,resume=None,max_epochs=None,max_iterations=None,ckpt_file=None,logdir=None):
     """
     An executable function for training Siren with a photon library
     
-    Args:
-        config_file (str): path to a yaml configuration file
+    Parameters
+    ----------
+    
+    config_file : str
+        Path to a yaml configuration file
 
-        device (str): cpu/gpu/mps (if software/hardware supported)
+    device : str
+        cpu/gpu/mps (if software/hardware supported)
 
-        lr (float): learning rate
+    lr : float
+        Learning rate
 
-        resume (bool): if True, continue training from the last checkpoint (requires ckpt_file)
+    resume : bool
+        If True, continue training from the last checkpoint (requires ckpt_file)
 
-        max_epochs (int): the maximum number of epochs before stop training
+    max_epochs : int
+        The maximum number of epochs before stop training
 
-        max_iterations (int): the maximum number of iterations before stop training
+    max_iterations : int
+        The maximum number of iterations before stop training
 
-        ckpt_file (str): torch checkpoint file stored from training
+    ckpt_file : str
+        Torch checkpoint file stored from training
     """
     cfg=dict()
-    with open(config_file,'r') as f:
-        cfg=yaml.safe_load(f)
+
+    if not os.path.isfile(config_file) and config_file in list_config():
+        cfg=load_config(config_file)
+    else:
+        with open(config_file,'r') as f:
+            cfg=yaml.safe_load(f)
 
     cfg_update = dict()
-    if lr: cfg_update['lr']=lr
     if max_epochs: cfg_update['max_epochs']=max_epochs
     if max_iterations: cfg_update['max_iterations']=max_iterations
     if resume: cfg_update['resume']=resume
     train_cfg = cfg.get('train',dict())
     train_cfg.update(cfg_update)
     cfg['train'] = train_cfg
+
+    cfg_update = dict()
+    if lr: cfg_update['lr']=lr
+    optim_cfg = cfg.get('train').get('optimizer_param',dict())
+    optim_cfg.update(cfg_update)
+    cfg['train']['optimizer_param'] = optim_cfg
+
     
     cfg_update = dict()
     if ckpt_file: cfg_update['ckpt_file']=ckpt_file

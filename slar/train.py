@@ -1,6 +1,7 @@
 import os
 from tqdm import tqdm
 import time
+import yaml
 from slar.io import PhotonLibDataset
 from slar.nets import SirenVis, WeightedL2Loss
 from slar.optimizers import optimizer_factory
@@ -9,26 +10,34 @@ from slar.utils import CSVLogger, get_device
 import torch
 from torch.utils.data import DataLoader
 
-def train(cfg):
+def train(cfg : dict):
     '''
     A function to run an optimization loop for SirenVis model.
     Configuration specific to this function is "train" at the top level.
 
-    train:
-        max_epochs (int): the maximum number of epochs before stopping training
+    Parameters
+    ----------
+    max_epochs : int
+        The maximum number of epochs before stopping training
 
-        max_iterations (int): the maximum number of iterations before stopping training
+    max_iterations : int
+        The maximum number of iterations before stopping training
 
-        save_every_epochs (int): a period in epochs to store the network state
+    save_every_epochs : int
+        A period in epochs to store the network state
 
-        save_every_iterations (int): a period in iterations to store the network state
+    save_every_iterations : int
+        A period in iterations to store the network state
 
-        optimizer_class (str): an optimizer class name to train SirenVis
+    optimizer_class : str
+        An optimizer class name to train SirenVis
 
-        optimizer_param (dict): optimizer constructor arguments
+    optimizer_param : dict
+        Optimizer constructor arguments
 
-        resume (bool): if True, and if a checkopint file is provided for the model,
-            resume training with the optimizer state restored from the last checkpoint step.
+    resume : bool
+        If True, and if a checkopint file is provided for the model, resume training 
+        with the optimizer state restored from the last checkpoint step.
 
     '''
 
@@ -39,6 +48,8 @@ def train(cfg):
     iteration_ctr = 0
     epoch_ctr = 0 
 
+    # Create necessary pieces: the model, optimizer, loss, logger.
+    # Load the states if this is resuming.
     net = SirenVis(cfg).to(DEVICE)
     ds = PhotonLibDataset(cfg)
     dl = DataLoader(ds, **cfg['data']['loader'])    
@@ -51,13 +62,19 @@ def train(cfg):
     logger = CSVLogger(cfg)
     logdir = logger.logdir
 
+    # Set the control parameters for the training loop
     train_cfg = cfg.get('train',dict())
     epoch_max = train_cfg.get('max_epochs',int(1e20))
     iteration_max = train_cfg.get('max_iterations',int(1e20))
     save_every_iterations = train_cfg.get('save_every_iterations',-1)
     save_every_epochs = train_cfg.get('save_every_epochs',-1)  
     print(f'[train] train for max iterations {iteration_max} or max epochs {epoch_max}')
+
+    # Store configuration
+    with open(os.path.join(logdir,'train_cfg.yaml'), 'w') as f:
+        yaml.safe_dump(cfg, f)
     
+    # Start the training loop
     t0=time.time()
     twait=time.time()
     stop_training = False
@@ -66,28 +83,32 @@ def train(cfg):
         for batch_idx, data in enumerate(tqdm(dl,desc='Epoch %-3d' % epoch_ctr)):
             iteration_ctr += 1
             
+            # Input data prep
             x       = data['position'].to(DEVICE)
             target  = data['value'].to(DEVICE)
             weights = data['weight'].to(DEVICE)
 
             twait = time.time()-twait
-            
+            # Running hte model, compute the loss, back-prop gradients to optimize.
             ttrain = time.time()
-            pred   = net(x)                
+            pred   = net(x)
             loss   = criterion(pred, target, weights)
             opt.zero_grad()
             loss.backward()
             opt.step()
             ttrain = time.time()-ttrain
             
+            # Log training parameters
             logger.record(['iter','epoch','loss','ttrain','twait'],
                           [iteration_ctr, epoch_ctr, loss.item(),ttrain,twait])
             twait = time.time()
             
+            # Step the logger
             target_linear  = ds.inv_xform_vis(target)
             pred_linear = ds.inv_xform_vis(pred)
             logger.step(iteration_ctr, target_linear, pred_linear)
                 
+            # Save the model parameters if the condition is met
             if save_every_iterations > 0 and iteration_ctr % save_every_iterations == 0:
                 filename = os.path.join(logdir,'iteration-%06d-epoch-%04d.ckpt' % (iteration_ctr,epoch_ctr))
                 net.save_state(filename,opt,iteration_ctr)
