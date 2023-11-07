@@ -56,7 +56,7 @@ class PhotonLibDataset(Dataset):
         #self.positions = self.plib.meta.voxel_to_coord(vox_ids)
         
         # set the loss weighting factor matrix
-        self.weights = 1
+        self.weights = torch.ones_like(self.visibilities)
         weight_cfg = cfg['data']['dataset'].get('weight')
         if weight_cfg:
             print('[PhotonLibDataset] weighting the loss using',weight_cfg.get('method'))
