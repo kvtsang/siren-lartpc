@@ -154,4 +154,4 @@ def test_SirenVis_to_plib(slib, fake_photon_library, rng):
     random_batch_size = rng.integers(1, 100)
     plib_batched = slib.to_plib(_plib.meta, batch_size=random_batch_size)
     assert plib_batched.vis.shape == _plib.vis.shape, 'plib vis shape is not as expected'
-    assert torch.allclose(plib_batched.vis,plib.vis, atol=1e-5), 'batched plib != non-batched plib'
+    assert torch.allclose(plib_batched.vis,plib.vis, rtol=1e-4), 'batched plib != non-batched plib'
