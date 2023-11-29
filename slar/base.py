@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import torch
 from torch import nn
 import numpy as np
@@ -48,7 +49,7 @@ class SineLayer(nn.Module):
             else:
                 self.linear.weight.uniform_(-np.sqrt(6 / self.in_features) / self.omega_0, 
                                              np.sqrt(6 / self.in_features) / self.omega_0)
-        
+         
     def forward(self, input):
         '''
         For the model forward function
@@ -152,7 +153,7 @@ class Siren(nn.Module):
                     x.retain_grad()
                     intermed.retain_grad()
                     
-                activations['_'.join((str(layer.__class__), "%d" % activation_count))] = intermed
+                activations['_'.join((str(layer.__class__.__name__), "%d" % activation_count))] = intermed
                 activation_count += 1
             else: 
                 x = layer(x)
@@ -160,7 +161,7 @@ class Siren(nn.Module):
                 if retain_grad:
                     x.retain_grad()
                     
-            activations['_'.join((str(layer.__class__), "%d" % activation_count))] = x
+            activations['_'.join((str(layer.__class__.__name__), "%d" % activation_count))] = x
             activation_count += 1
 
         return activations

@@ -107,7 +107,7 @@ class SirenVis(Siren):
         return next(self.parameters()).device  
 
 
-    def to_plib(self, meta, batch_size : int = 0, device : torch.device = 'cpu'):
+    def to_plib(self, meta, batch_size : int = None, device : torch.device = 'cpu'):
         '''
         Create a PhotonLib instance
 
@@ -299,7 +299,6 @@ class SirenVis(Siren):
             self.register_buffer('scale', scale)
         else:
             self.register_parameter('scale', torch.nn.Parameter(scale))
-
 
 
 

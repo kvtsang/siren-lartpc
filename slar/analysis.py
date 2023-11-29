@@ -20,6 +20,9 @@ def vis_bias(target : torch.Tensor, pred : torch.Tensor, threshold : float = 0.)
     torch.Tensor
         The model visibility bias.
     '''
+    if target.shape != pred.shape:
+        raise ValueError(f'target and pred must have the same shape {(*target.shape,)} != {(*pred.shape,)}')
+    
     mask = target > threshold
     a = pred[mask]
     b = target[mask]
