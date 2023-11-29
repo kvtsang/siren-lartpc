@@ -1,5 +1,6 @@
 import torch
 from functools import partial
+import numpy as np
 
 def xform_vis(x, vmax=1, eps=1e-7, sin_out=False):
     r'''
@@ -32,10 +33,10 @@ def xform_vis(x, vmax=1, eps=1e-7, sin_out=False):
     torch.Tensor
         The log-scale visibility value.
     '''
-    eps=torch.as_tensor(eps,device=x.device)
-    vmax=torch.as_tensor(vmax,device=x.device)
-    y0 = torch.log10(eps)
-    y1 = torch.log10(vmax+ eps)
+    # eps=torch.as_tensor(eps,device=x.device)
+    # vmax=torch.as_tensor(vmax,device=x.device)
+    y0 = np.log10(eps)
+    y1 = np.log10(vmax+ eps)
 
     y = torch.log10(x + eps)
     y -= y0
@@ -67,10 +68,10 @@ def inv_xform_vis(y, vmax=1, eps=1e-7, sin_out=False):
     torch.Tensor
         The linear-scale visibility value.
     '''
-    eps=torch.as_tensor(eps,device=y.device)
-    vmax=torch.as_tensor(vmax,device=y.device)
-    y0 = torch.log10(eps)
-    y1 = torch.log10(vmax + eps)
+    # eps=torch.as_tensor(eps,device=y.device)
+    # vmax=torch.as_tensor(vmax,device=y.device)
+    y0 = np.log10(eps)
+    y1 = np.log10(vmax + eps)
 
     if sin_out:
         y = (y+1)/2
