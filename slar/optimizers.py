@@ -62,8 +62,12 @@ def optimizer_factory(params,cfg):
         An instance of an optimizer with the parameters eitehr configured
         by the input or loaded from a checkpoint file.
     '''
-    opt_class = cfg['train']['optimizer_class']
-    opt_param = cfg['train']['optimizer_param']
+    if 'optimizer_class' in cfg['train']:
+        opt_class = cfg['train']['optimizer_class']
+        opt_param = cfg['train']['optimizer_param']
+    else:
+        opt_class = cfg['train']['optimizer']['name']
+        opt_param = cfg['train']['optimizer']['parameters']
 
     if not hasattr(torch.optim, opt_class):
         raise RuntimeError(f'torch.optim has no optimizer called {opt_class}')
