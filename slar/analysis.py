@@ -29,3 +29,24 @@ def vis_bias(target : torch.Tensor, pred : torch.Tensor, threshold : float = 0.)
     bias = (2 * torch.abs(a-b) / (a+b)).mean()
     return bias
 
+def abs_bias(target: torch.Tensor, pred : torch.Tensor, random=0):
+    '''
+    Function to compute the absolute bias (the mean of |target - pred|)
+    
+    Parameters
+    ----------
+    target : torch.Tensor
+        Some reference target based on which the bias is calculated.
+    pred : torch.Tensor
+        Prediction for target on which which the bias is calculated.
+        
+    Returns
+    -------
+    torch.Tensor
+        The model absolute bias.
+
+    '''
+    if target.shape != pred.shape:
+        raise ValueError(f'target and pred must have the same shape {(*target.shape,)} != {(*pred.shape,)}')
+    
+    return torch.abs(target - pred).mean()
