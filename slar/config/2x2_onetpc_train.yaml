@@ -19,7 +19,7 @@ model:
         in_features: 3
         hidden_features: 512
         hidden_layers: 5
-        out_features: 180
+        out_features: 48
     ckpt_file: ""
     output_scale:
         fix: True
