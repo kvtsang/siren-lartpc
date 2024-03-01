@@ -205,7 +205,7 @@ class SirenVis(Siren):
         return out
 
 
-    def save_state(self, filename, opt=None, epoch=0):
+    def save_state(self, filename, opt=None, sch=None, epoch=0):
         '''
         Stores the network model and optimizer (and some hyper-) parameters to a binary file.
 
@@ -216,6 +216,8 @@ class SirenVis(Siren):
             The name of checkpoint file to be stored.
         opt : torch.optim.Optimizer
             The optimizer instance to store the optimizer state in the same file.
+        sch : torch.optim.lr_scheduler, optional
+            Learing rate scheduler instance to adjust lr (update every epoch)
         epoch : float
             The epoch count of training.
         '''
@@ -233,6 +235,9 @@ class SirenVis(Siren):
 
         if opt:
             state_dict['optimizer'] = opt.state_dict()
+
+        if sch:
+            state_dict['scheduler'] = sch.state_dict()
 
         print('[SirenVis] saving the state ',filename)
         torch.save(state_dict,filename)
@@ -299,7 +304,3 @@ class SirenVis(Siren):
             self.register_buffer('scale', scale)
         else:
             self.register_parameter('scale', torch.nn.Parameter(scale))
-
-
-
-

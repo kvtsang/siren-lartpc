@@ -119,7 +119,7 @@ class Siren(nn.Module):
         
         self.net = nn.Sequential(*self.net)
     
-    def forward(self, coords, clone=True):
+    def forward(self, coords, clone=False):
         '''
         For the model forward computation.
 
