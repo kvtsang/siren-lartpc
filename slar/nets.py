@@ -4,7 +4,7 @@ import tqdm
 
 from slar.base import Siren
 from slar.transform import partial_xform_vis
-
+from photonlib import AABox
 class WeightedL2Loss(torch.nn.Module):
     '''
     A simple loss module that implements a weighted MSE loss
@@ -23,7 +23,7 @@ class SirenVis(Siren):
     Siren class implementation for LArTPC optical photon transport
     '''
     
-    def __init__(self, cfg : dict, ckpt_file : str = None):
+    def __init__(self, cfg : dict, ckpt_file : str = None, meta = None):
         '''
         Constructor takes two different modes depending on the arguments.
 
@@ -35,7 +35,7 @@ class SirenVis(Siren):
             this includes the function input coordinate information (self._meta), visibility
             forward and inverse transformation functions (self._xform_vis, self._inv_xform_vis),
             a flag to apply sigmoid on the output of Siren (self._do_hardsigmoid), and the scaling
-            factor applied to each visibility (self.scale).
+            factor applied to each visibility (self.output_scale).
 
         Mode 2: load everything but the network architecture from the configuration file
             
@@ -61,6 +61,9 @@ class SirenVis(Siren):
 
         self._n_outs = siren_cfg['network']['out_features']
 
+        input_scale = torch.ones(size=(siren_cfg['network']['in_features'],),dtype=torch.float32)
+        self.register_buffer('input_scale', input_scale)
+
         if siren_cfg.get('ckpt_file') or not ckpt_file is None:
             print('[SirenVis] loading the state from ckpt. Only "network" configuration used.)')
             if ckpt_file is None:
@@ -69,8 +72,10 @@ class SirenVis(Siren):
             return
 
         # create meta
-        from photonlib import AABox
-        self._meta = AABox.load(cfg['photonlib']['filepath'])
+        if meta is not None:
+            self._meta = meta
+        else:
+            self._meta = AABox.load(cfg['photonlib']['filepath'])
 
         # transform functions
         self._xform_cfg = cfg.get('transform_vis')
@@ -107,53 +112,10 @@ class SirenVis(Siren):
         return next(self.parameters()).device  
 
 
-    def to_plib(self, meta, batch_size : int = None, device : torch.device = 'cpu'):
-        '''
-        Create a PhotonLib instance
-
-        Parameters
-        ----------
-        meta : VoxelMeta
-            The voxel definition. Usually obtained from a PhotonLib instance.
-        batch_size : int
-            If specified, the forward inference will be performed using this baatch size.
-            If unspecified, the inference will be performed for all voxels at once.
-            The latter could result in CUDA out-of-memory error if this siren is on GPU
-            and the GPU does not have enough memory to process all voxels at once.
-        device : torch.device
-            The device on which the return tensor will be placed at.
-
-        Returns
-        -------
-        PhotonLib
-            A new PhotonLib instance with the VoxelMeta from the input and the visibility
-            map filled using this Siren.
-
-        '''
-
-        #pts=torch.cartesian_prod(*(meta.bin_centers)).to(self.device)
-        from photonlib import PhotonLib
-
-        pts = meta.voxel_to_coord(torch.arange(len(meta)))
-        
-        with torch.no_grad():
-            
-            if batch_size is None:
-                return PhotonLib(meta, self.visibility(pts))
-            
-            batch_size = min(batch_size, len(meta))
-            ctr = int(np.ceil(len(meta)/batch_size))
-            vis = []
-            for i in tqdm.tqdm(range(ctr)):
-                start = i * batch_size
-                end   = (i+1) * batch_size
-                
-                batch_pts = pts[start:end]
-                batch_vis = self.visibility(batch_pts)
-                vis.append(batch_vis)
-                
-            return PhotonLib(meta, torch.cat(vis).to(device))
-
+    def update_meta(self, meta:AABox, input_scale:torch.Tensor=None):
+        self._meta = meta
+        if input_scale:
+            self.input_scale[:] = input_scale
 
     def visibility(self, x):
         '''
@@ -194,13 +156,14 @@ class SirenVis(Siren):
         torch.Tensor
             Holds the visibilities in log-scale for the position(s) x.
         '''
+        assert not torch.any(torch.lt(x,-1) | torch.gt(x,1)), f"The input contains a value out of range [-1,1]"
 
-        out = super().forward(x)
+        out = super().forward(x * self.input_scale)
         
         if self._do_hardsigmoid:
             out =  torch.nn.functional.hardsigmoid(out)
             
-        out = out * self.scale
+        out = out * self.output_scale
         
         return out
 
@@ -224,13 +187,13 @@ class SirenVis(Siren):
                         state_dict  = self.state_dict(),
                         xform_cfg   = self._xform_cfg,
                         aabox_ranges= self._meta.ranges,
-                        do_hardsigmoid = self._do_hardsigmoid
+                        do_hardsigmoid = self._do_hardsigmoid,
+                        input_scale = self.input_scale,
                        )
-        # check if scale should be saved
+        # check if output_scale should be saved
         pnames = [ name for name, p in self.named_parameters()]
-        if not 'scale' in pnames:
-            state_dict['scale'] = self.scale 
-
+        if not 'output_scale' in pnames:
+            state_dict['output_scale'] = self.output_scale 
         if opt:
             state_dict['optimizer'] = opt.state_dict()
 
@@ -257,19 +220,23 @@ class SirenVis(Siren):
 
             from photonlib import AABox
             self._meta = AABox(checkpoint['aabox_ranges'])
-
             self._xform_cfg = checkpoint['xform_cfg']
             self._xform_vis, self._inv_xform_vis = partial_xform_vis(self._xform_cfg)
-
             self._do_hardsigmoid = checkpoint['do_hardsigmoid']
+            if 'input_scale' in checkpoint:
+                self.input_scale[:] = checkpoint['input_scale']
 
-            scale = torch.ones(self._n_outs,dtype=torch.float32)
+            output_scale = torch.ones(self._n_outs,dtype=torch.float32)
 
             if 'scale' in checkpoint.keys():
-                self.register_buffer('scale', scale)
-                self.scale = checkpoint['scale']
+                # 2024-03-04 Kazu - For backward compatibility
+                self.register_buffer('output_scale', output_scale)
+                self.output_scale = checkpoint['scale']
+            if 'output_scale' in checkpoint.keys():
+                self.register_buffer('output_scale', output_scale)
+                self.output_scale = checkpoint['output_scale']
             else:
-                self.register_parameter('scale', torch.nn.Parameter(scale))
+                self.register_parameter('output_scale', torch.nn.Parameter(output_scale))
 
             self.load_state_dict(checkpoint['state_dict'])
             
@@ -281,25 +248,24 @@ class SirenVis(Siren):
         
         # 1) set scale=1 (default)
         if init is None:
-            scale = np.ones(self._n_outs)
+            output_scale = np.ones(self._n_outs)
             
         # 2) load from np file
         elif isinstance(init, str):
-            scale = np.load(init)
+            output_scale = np.load(init)
         
         # 3) take from cfg as-it
         else:
-            scale = np.asarray(init)
+            output_scale = np.asarray(init)
             
-        assert len(scale)==self._n_outs, 'len(output_scale) != out_features'
+        assert len(output_scale)==self._n_outs, 'len(output_scale) != out_features'
         
-        scale = torch.tensor(np.nan_to_num(scale), dtype=torch.float32)
+        output_scale = torch.tensor(np.nan_to_num(output_scale), dtype=torch.float32)
         
         if scale_cfg.get('fix', True):
-            self.register_buffer('scale', scale)
+            self.register_buffer('output_scale', output_scale)
         else:
-            self.register_parameter('scale', torch.nn.Parameter(scale))
-
+            self.register_parameter('output_scale', torch.nn.Parameter(output_scale))
 
 
 

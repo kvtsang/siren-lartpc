@@ -1,6 +1,54 @@
-import sys, os, importlib, glob, yaml
+import sys, os, importlib, glob, yaml, tqdm
 import torch
+import numpy as np
 from functools import partial
+
+def to_plib(siren, meta, batch_size : int = None, device : torch.device = 'cpu'):
+    '''
+    Create a PhotonLib instance
+
+    Parameters
+    ----------
+    meta : VoxelMeta
+        The voxel definition. Usually obtained from a PhotonLib instance.
+    batch_size : int
+        If specified, the forward inference will be performed using this baatch size.
+        If unspecified, the inference will be performed for all voxels at once.
+        The latter could result in CUDA out-of-memory error if this siren is on GPU
+        and the GPU does not have enough memory to process all voxels at once.
+    device : torch.device
+        The device on which the return tensor will be placed at.
+
+    Returns
+    -------
+    PhotonLib
+        A new PhotonLib instance with the VoxelMeta from the input and the visibility
+        map filled using this Siren.
+
+    '''
+
+    #pts=torch.cartesian_prod(*(meta.bin_centers)).to(self.device)
+    from photonlib import PhotonLib
+
+    pts = meta.voxel_to_coord(torch.arange(len(meta)))
+    
+    with torch.no_grad():
+        
+        if batch_size is None:
+            return PhotonLib(meta, siren.visibility(pts))
+        
+        batch_size = min(batch_size, len(meta))
+        ctr = int(np.ceil(len(meta)/batch_size))
+        vis = []
+        for i in tqdm.tqdm(range(ctr)):
+            start = i * batch_size
+            end   = (i+1) * batch_size
+            
+            batch_pts = pts[start:end]
+            batch_vis = siren.visibility(batch_pts)
+            vis.append(batch_vis)
+            
+        return PhotonLib(meta, torch.cat(vis).to(device))
 
 
 def list_available_devices():

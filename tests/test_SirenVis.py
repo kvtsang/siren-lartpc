@@ -7,6 +7,7 @@ import torch
 import yaml
 from slar.nets import SirenVis
 from slar.transform import partial_xform_vis
+from slar.utils import to_plib
 
 from photonlib import PhotonLib
 from photonlib.meta import AABox
@@ -60,9 +61,9 @@ def test_SirenVis_init(cfg, rng):
     
     
     # test init_output_scale
-    assert hasattr(net, 'scale'), 'scale is not an attribute of the network'
-    assert isinstance(net.scale, torch.Tensor), 'scale is not a Tensor'
-    assert torch.allclose(net.scale, torch.ones(out_features).float()), 'scale is not all ones'
+    assert hasattr(net, 'output_scale'), 'output_scale is not an attribute of the network'
+    assert isinstance(net.output_scale, torch.Tensor), 'output_scale is not a Tensor'
+    assert torch.allclose(net.output_scale, torch.ones(out_features).float()), 'output_scale is not all ones'
     
     # test with str init
     random_scale = rng.uniform(0, 1, size=out_features)
@@ -71,21 +72,21 @@ def test_SirenVis_init(cfg, rng):
     _cfg = cfg.copy()
     _cfg['model']['output_scale'] = dict(init=tempfile)
     net = SirenVis(_cfg)
-    assert torch.allclose(net.scale, torch.from_numpy(random_scale).float()), 'scale is not as expected'
+    assert torch.allclose(net.output_scale, torch.from_numpy(random_scale).float()), 'output_scale is not as expected'
     os.remove(tempfile)
     
     # test with array init
     _cfg = cfg.copy()
     _cfg['model']['output_scale'] = dict(init=random_scale.tolist())
     net = SirenVis(_cfg)
-    assert torch.allclose(net.scale, torch.from_numpy(random_scale).float()), 'scale is not as expected'
+    assert torch.allclose(net.output_scale, torch.from_numpy(random_scale).float()), 'output_scale is not as expected'
     
     # test fix=False (i.e., let PMT scale array float)
     _cfg = cfg.copy()
     _cfg['model']['output_scale'] = dict(fix=False)
     net = SirenVis(_cfg)
-    assert isinstance(net.scale, torch.nn.Parameter), 'scale is not a Parameter'
-    assert torch.allclose(net.scale.data, torch.ones(out_features).float()), 'scale is not all ones'
+    assert isinstance(net.output_scale, torch.nn.Parameter), 'output_scale is not a Parameter'
+    assert torch.allclose(net.output_scale.data, torch.ones(out_features).float()), 'output_scale is not all ones'
     
     
 
@@ -133,10 +134,10 @@ def test_SirenVis_save_and_load(cfg, rng, do_hardsigmoid, float_scale):
     
     for loaded_slib in [slib2, slib3]:        
         if not float_scale:
-            assert isinstance(loaded_slib.scale, torch.nn.Parameter), 'loaded scale is not a Parameter'
-            assert torch.allclose(loaded_slib.scale.data, slib.scale.data), 'scale is not as expected'
+            assert isinstance(loaded_slib.output_scale, torch.nn.Parameter), 'loaded output_scale is not a Parameter'
+            assert torch.allclose(loaded_slib.output_scale.data, slib.output_scale.data), 'output_scale is not as expected'
         else:
-            assert torch.allclose(loaded_slib.scale, slib.scale), 'scale is not as expected'
+            assert torch.allclose(loaded_slib.output_scale, slib.output_scale), 'output_scale is not as expected'
         assert slib._xform_cfg == loaded_slib._xform_cfg, 'xform_cfg is not as expected'
         assert signature(slib._xform_vis) == signature(loaded_slib._xform_vis), 'xform_vis does not have expected signature'
         assert signature(slib._inv_xform_vis) == signature(loaded_slib._inv_xform_vis), 'inv_xform_vis does not have expected signature'
@@ -147,11 +148,11 @@ def test_SirenVis_to_plib(slib, fake_photon_library, rng):
     _plib = PhotonLib.load(fake_photon_library)
     
     # no batch size
-    plib = slib.to_plib(_plib.meta)
+    plib = to_plib(slib,_plib.meta)
     assert plib.vis.shape == _plib.vis.shape, 'plib vis shape is not as expected'
     
     # batch size
     random_batch_size = rng.integers(1, 100)
-    plib_batched = slib.to_plib(_plib.meta, batch_size=random_batch_size)
+    plib_batched = to_plib(slib, _plib.meta, batch_size=random_batch_size)
     assert plib_batched.vis.shape == _plib.vis.shape, 'plib vis shape is not as expected'
     assert torch.allclose(plib_batched.vis,plib.vis, rtol=1e-4), 'batched plib != non-batched plib'

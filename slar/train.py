@@ -52,7 +52,10 @@ def train(cfg : dict):
     # Load the states if this is resuming.
     net = SirenVis(cfg).to(DEVICE)
     ds = PhotonLibDataset(cfg)
-    dl = DataLoader(ds, **cfg['data']['loader'])    
+    if 'loader' in cfg['data']:
+        dl = DataLoader(ds, **cfg['data']['loader'])
+    else:
+        dl = [dict(position=ds.positions,value=ds.visibilities,weight=ds.weights)]
     opt, epoch = optimizer_factory(net.parameters(),cfg)
     if epoch >0:
         iteration_ctr = int(epoch * len(dl))
@@ -78,6 +81,7 @@ def train(cfg : dict):
     t0=time.time()
     twait=time.time()
     stop_training = False
+
     while iteration_ctr < iteration_max and epoch_ctr < epoch_max:
         
         for batch_idx, data in enumerate(tqdm(dl,desc='Epoch %-3d' % epoch_ctr)):
@@ -87,7 +91,7 @@ def train(cfg : dict):
             x       = data['position'].to(DEVICE)
             target  = data['value'].to(DEVICE)
             weights = data['weight'].to(DEVICE)
-
+            
             twait = time.time()-twait
             # Running hte model, compute the loss, back-prop gradients to optimize.
             ttrain = time.time()
