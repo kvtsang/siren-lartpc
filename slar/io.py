@@ -66,9 +66,20 @@ class PhotonLibDataset(Dataset):
                 self.weights[self.weights<weight_cfg.get('threshold',1.e-8)] = 1.    
             else:
                 raise NotImplementedError(f'The weight mode {weight_cfg.get("method")} is invalid.')
+
+        if 'device' in cfg['data']['dataset']:
+            self.to(cfg['data']['dataset']['device'])
+
         
     def __len__(self):
         return len(self.plib.vis)
+
+    def to(self,device):
+        self.positions = self.positions.to(device)
+        self.visibilities = self.visibilities.to(device)
+        self.weights = self.weights.to(device)
+        torch.cuda.synchronize()
+        return self
     
     def __getitem__(self, idx):
         output = dict(
