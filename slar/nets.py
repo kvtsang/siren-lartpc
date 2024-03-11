@@ -115,6 +115,17 @@ class SirenVis(Siren):
         '''
         return next(self.parameters()).device  
 
+    @property
+    def n_pmts(self):
+        '''
+        Number of pmts, same interface as `PhontonLib.n_pmts`.
+
+        Returns
+        -------
+        n_pmts: int
+            Number of PMTs (i.e. number of output features)
+        '''
+        return self._n_outs
 
     def update_meta(self, meta:AABox, input_scale:torch.Tensor=None):
         self._meta = meta
