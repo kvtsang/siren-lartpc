@@ -68,6 +68,10 @@ class SirenVis(Siren):
             print('[SirenVis] loading the state from ckpt. Only "network" configuration used.)')
             if ckpt_file is None:
                 ckpt_file = siren_cfg['ckpt_file']
+
+            # register buffer/parameter for output_scale
+            # actual values will be loaded from state_dict
+            self._init_output_scale(siren_cfg={})
             self.load_state(ckpt_file)
             return
 
@@ -111,6 +115,17 @@ class SirenVis(Siren):
         '''
         return next(self.parameters()).device  
 
+    @property
+    def n_pmts(self):
+        '''
+        Number of pmts, same interface as `PhontonLib.n_pmts`.
+
+        Returns
+        -------
+        n_pmts: int
+            Number of PMTs (i.e. number of output features)
+        '''
+        return self._n_outs
 
     def update_meta(self, meta:AABox, input_scale:torch.Tensor=None):
         self._meta = meta
@@ -190,12 +205,8 @@ class SirenVis(Siren):
                         xform_cfg   = self._xform_cfg,
                         aabox_ranges= self._meta.ranges,
                         do_hardsigmoid = self._do_hardsigmoid,
-                        input_scale = self.input_scale,
                        )
-        # check if output_scale should be saved
-        pnames = [ name for name, p in self.named_parameters()]
-        if not 'output_scale' in pnames:
-            state_dict['output_scale'] = self.output_scale 
+
         if opt:
             state_dict['optimizer'] = opt.state_dict()
 
@@ -219,32 +230,23 @@ class SirenVis(Siren):
 
         iteration = 0
         print('[SirenVis] loading the state',model_path)
-        with open(model_path, 'rb') as f:
 
-            checkpoint = torch.load(f, map_location='cpu')            
+        checkpoint = torch.load(model_path, map_location='cpu')            
 
-            from photonlib import AABox
-            self._meta = AABox(checkpoint['aabox_ranges'])
-            self._xform_cfg = checkpoint['xform_cfg']
-            self._xform_vis, self._inv_xform_vis = partial_xform_vis(self._xform_cfg)
-            self._do_hardsigmoid = checkpoint['do_hardsigmoid']
-            if 'input_scale' in checkpoint:
-                self.input_scale[:] = checkpoint['input_scale']
+        from photonlib import AABox
+        self._meta = AABox(checkpoint['aabox_ranges'])
+        self._xform_cfg = checkpoint['xform_cfg']
+        self._xform_vis, self._inv_xform_vis = partial_xform_vis(self._xform_cfg)
+        self._do_hardsigmoid = checkpoint['do_hardsigmoid']
 
-            output_scale = torch.ones(self._n_outs,dtype=torch.float32)
+        # 2024-03-10 kvt: for backward compatibility
+        state_dict = checkpoint['state_dict']
+        if 'input_scale' not in state_dict:
+            state_dict['input_scale'] = self.input_scale
+        if 'scale' in state_dict:
+            state_dict['output_scale'] = state_dict.pop('scale')
 
-            if 'scale' in checkpoint.keys():
-                # 2024-03-04 Kazu - For backward compatibility
-                self.register_buffer('output_scale', output_scale)
-                self.output_scale = checkpoint['scale']
-            if 'output_scale' in checkpoint.keys():
-                self.register_buffer('output_scale', output_scale)
-                self.output_scale = checkpoint['output_scale']
-            else:
-                self.register_parameter('output_scale', torch.nn.Parameter(output_scale))
-
-            self.load_state_dict(checkpoint['state_dict'])
-            
+        self.load_state_dict(state_dict)
 
     def _init_output_scale(self, siren_cfg):
 
