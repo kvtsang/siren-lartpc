@@ -56,7 +56,7 @@ def train(cfg : dict):
         dl = DataLoader(ds, **cfg['data']['loader'])
     else:
         dl = [dict(position=ds.positions,value=ds.visibilities,weight=ds.weights)]
-    opt, epoch = optimizer_factory(net.parameters(),cfg)
+    opt, sch, epoch = optimizer_factory(net.parameters(),cfg)
     if epoch >0:
         iteration_ctr = int(epoch * len(dl))
         epoch_ctr = int(epoch)
@@ -115,7 +115,7 @@ def train(cfg : dict):
             # Save the model parameters if the condition is met
             if save_every_iterations > 0 and iteration_ctr % save_every_iterations == 0:
                 filename = os.path.join(logdir,'iteration-%06d-epoch-%04d.ckpt' % (iteration_ctr,epoch_ctr))
-                net.save_state(filename,opt,iteration_ctr)
+                net.save_state(filename,opt,sch,iteration_ctr)
             
             if iteration_max <= iteration_ctr:
                 stop_training=True
@@ -124,11 +124,15 @@ def train(cfg : dict):
         if stop_training:
             break
 
+        if sch is not None:
+            sch.step()
+
         epoch_ctr += 1
 
         if (save_every_epochs*epoch_ctr) > 0 and epoch_ctr % save_every_epochs == 0:
             filename = os.path.join(logdir,'iteration-%06d-epoch-%04d.ckpt' % (iteration_ctr,epoch_ctr))
-            net.save_state(filename,opt,iteration_ctr/len(dl))
+            net.save_state(filename,opt,sch,iteration_ctr/len(dl))
+
             
     print('[train] Stopped training at iteration',iteration_ctr,'epochs',epoch_ctr)
     logger.write()
