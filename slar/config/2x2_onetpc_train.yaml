@@ -3,7 +3,7 @@ train:
     save_every_epochs: 10
     optimizer_class: Adam
     optimizer_param:
-        lr: 5.e-5
+        lr: 2.e-6
     resume: False
 photonlib:
     filepath: plib_2x2_onetpc.h5
