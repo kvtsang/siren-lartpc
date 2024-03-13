@@ -164,13 +164,14 @@ class PLibDataLoader:
                 raise NotImplementedError(f'Weight method {method} is invalid')
             self._weight_cfg = weight_cfg
         else:
-            self.get_weight = lambda vis : 1.
+            print('[PLibDataLoader] weight = 1')
+            self.get_weight = lambda vis : torch.tensor(1., device=device)
 
         # tranform visiblity in pseudo-log scale (default: False)
         xform_params = cfg.get('transform_vis')
         if xform_params:
-            print('[PhotonLibDataset] using log scale transformaion')
-            print('[PhotonLibDataset] transformation params',xform_params)
+            print('[PLibDataLoader] using log scale transformaion')
+            print('[PLibDataLoader] transformation params',xform_params)
 
         self.xform_vis, self.inv_xform_vis = partial_xform_vis(xform_params)
 
@@ -192,8 +193,9 @@ class PLibDataLoader:
 
             vis = self._plib.vis
             w = self.get_weight(vis)
+            target = self.xform_vis(vis)
 
-            self._cache = dict(position=pos, value=vis, weight=w)
+            self._cache = dict(position=pos, value=vis, weight=w, target=target)
 
     @property
     def device(self):
@@ -252,8 +254,9 @@ class PLibDataLoader:
                 pos = meta.norm_coord(meta.voxel_to_coord(vox_ids))
                 vis = self._plib[vox_ids]
                 w = self.get_weight(vis)
-                
-                output = dict(position=pos, value=vis, weight=w)
+                target = self.xform_vis(vis)
+
+                output = dict(position=pos, value=vis, weight=w, target=target)
                 yield output
         else:
             yield self._cache

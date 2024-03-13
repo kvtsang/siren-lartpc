@@ -87,9 +87,9 @@ def train(cfg : dict):
             
             # Input data prep
             x              = data['position'].to(DEVICE)
-            target_linear  = data['value'].to(DEVICE)
             weights        = data['weight'].to(DEVICE)
-            target         = dl.xform_vis(target_linear)
+            target         = data['target'].to(DEVICE)
+            target_linear  = data['value'].to(DEVICE)
 
             twait = time.time()-twait
             # Running the model, compute the loss, back-prop gradients to optimize.
