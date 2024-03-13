@@ -71,7 +71,9 @@ class SirenVis(Siren):
 
             # register buffer/parameter for output_scale
             # actual values will be loaded from state_dict
-            self._init_output_scale(siren_cfg={})
+            siren_init_cfg = siren_cfg.copy()
+            siren_init_cfg.get('output_scale', {}).pop('init',None)
+            self._init_output_scale(siren_init_cfg)
             self.load_state(ckpt_file)
             return
 
