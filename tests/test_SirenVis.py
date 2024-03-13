@@ -119,13 +119,13 @@ def test_SirenVis_save_and_load(cfg, rng, do_hardsigmoid, float_scale):
     ckpt_file = writable_temp_file(suffix='.ckpt')
     out_features = cfg['model']['network']['out_features']
     random_scale = rng.uniform(0, 1, size=out_features)
-    cfg['model']['output_scale'] = dict(init=random_scale.tolist(), fix=float_scale)
+    cfg['model']['output_scale'] = dict(init=random_scale.tolist(), fix=not float_scale)
     cfg['model']['hardsigmoid'] = do_hardsigmoid
     slib = SirenVis(cfg)
     slib.save_state(ckpt_file)
     
     _cfg = cfg.copy()
-    _cfg['model'].pop('output_scale')
+    _cfg['model']['output_scale'].pop('init')
     _cfg.pop('photonlib')
     _cfg.pop('transform_vis')
     slib2 = SirenVis(_cfg, ckpt_file)
@@ -133,7 +133,7 @@ def test_SirenVis_save_and_load(cfg, rng, do_hardsigmoid, float_scale):
     slib3 = SirenVis(_cfg)
     
     for loaded_slib in [slib2, slib3]:        
-        if not float_scale:
+        if float_scale:
             assert isinstance(loaded_slib.output_scale, torch.nn.Parameter), 'loaded output_scale is not a Parameter'
             assert torch.allclose(loaded_slib.output_scale.data, slib.output_scale.data), 'output_scale is not as expected'
         else:
