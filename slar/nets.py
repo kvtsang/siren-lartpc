@@ -74,6 +74,7 @@ class SirenVis(Siren):
             siren_init_cfg = siren_cfg.copy()
             siren_init_cfg.get('output_scale', {}).pop('init',None)
             self._init_output_scale(siren_init_cfg)
+
             self.load_state(ckpt_file)
             return
 

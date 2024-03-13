@@ -2,7 +2,7 @@ import os
 from tqdm import tqdm
 import time
 import yaml
-from slar.io import PhotonLibDataset
+from slar.io import PLibDataLoader
 from slar.nets import SirenVis, WeightedL2Loss
 from slar.optimizers import optimizer_factory
 from slar.utils import CSVLogger, get_device
@@ -51,11 +51,9 @@ def train(cfg : dict):
     # Create necessary pieces: the model, optimizer, loss, logger.
     # Load the states if this is resuming.
     net = SirenVis(cfg).to(DEVICE)
-    ds = PhotonLibDataset(cfg)
-    if 'loader' in cfg['data']:
-        dl = DataLoader(ds, **cfg['data']['loader'])
-    else:
-        dl = [dict(position=ds.positions,value=ds.visibilities,weight=ds.weights)]
+
+    dl = PLibDataLoader(cfg, device=DEVICE)
+
     opt, sch, epoch = optimizer_factory(net.parameters(),cfg)
     if epoch >0:
         iteration_ctr = int(epoch * len(dl))
@@ -88,12 +86,13 @@ def train(cfg : dict):
             iteration_ctr += 1
             
             # Input data prep
-            x       = data['position'].to(DEVICE)
-            target  = data['value'].to(DEVICE)
-            weights = data['weight'].to(DEVICE)
-            
+            x              = data['position'].to(DEVICE)
+            weights        = data['weight'].to(DEVICE)
+            target         = data['target'].to(DEVICE)
+            target_linear  = data['value'].to(DEVICE)
+
             twait = time.time()-twait
-            # Running hte model, compute the loss, back-prop gradients to optimize.
+            # Running the model, compute the loss, back-prop gradients to optimize.
             ttrain = time.time()
             pred   = net(x)
             loss   = criterion(pred, target, weights)
@@ -108,8 +107,7 @@ def train(cfg : dict):
             twait = time.time()
             
             # Step the logger
-            target_linear  = ds.inv_xform_vis(target)
-            pred_linear = ds.inv_xform_vis(pred)
+            pred_linear = dl.inv_xform_vis(pred)
             logger.step(iteration_ctr, target_linear, pred_linear)
                 
             # Save the model parameters if the condition is met
