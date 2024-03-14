@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from photonlib import AABox
 from slar.nets import SirenVis
 import torch
@@ -7,9 +9,9 @@ class MultiVis(torch.nn.Module):
         
         super().__init__()
         
-        self._meta = AABox([[0.,0.],[0.,0.],[0.,0.]])
+        self._meta = None
         self._model_v = []
-        self._n_pmts = None
+        self._n_pmts_v = []
         
         if cfg is not None:
             self.configure(cfg)
@@ -31,7 +33,7 @@ class MultiVis(torch.nn.Module):
             assert max(weight_id) < len(weights), f"weight_id max value ({max(weight_id)}) must be less than {len(weights)}"
             
             for w in weights:
-                self.add_model(SirenVis.create_from_ckpt(w))
+                self.add_model(SirenVis.load(w))
             
             aabox = torch.as_tensor(aabox)
             for i in range(len(weight_id)):
@@ -42,7 +44,7 @@ class MultiVis(torch.nn.Module):
         
     @property
     def n_pmts(self):
-        return self._n_pmts
+        return sum(self._n_pmts_v)
         
     @property
     def meta(self):
@@ -65,9 +67,6 @@ class MultiVis(torch.nn.Module):
         return next(self.model_array[0].parameters()).device
 
     def add_model(self, vis : SirenVis):
-        if self._n_pmts is None:
-            self._n_pmts = vis.n_pmts
-        assert self.n_pmts == vis.n_pmts, f"the output shape mismatch: vis ({vis.n_pmts}) but expected {self.n_pmts}"
         model_name = 'model%d' % len(self._model_v)
         self.add_module(model_name,vis)
         self._model_v.append(getattr(self,model_name))
@@ -111,8 +110,11 @@ class MultiVis(torch.nn.Module):
             self.register_buffer('model_ids',torch.as_tensor([model_idx]),persistent=False)
         else:
             self.model_ids = torch.cat([self.model_ids,torch.as_tensor([model_idx])])
+
+        # PMT count
+        self._n_pmts_v.append(self.model_array[model_idx].n_pmts)
         
-    def visibility(self, x):
+    def visibility2(self, x):
         
         if len(x.shape) == 1:
             x = x[None,:]
@@ -123,12 +125,56 @@ class MultiVis(torch.nn.Module):
         for i,rs in enumerate(self.children_meta):
             m=AABox(rs)
             mask = m.contain(x)
+            if mask.sum()<1: continue
             model = self.model_array[self.model_ids[i]]
-            scale = self.input_scale[i]
-            model.update_meta(ranges=m.ranges,input_scale=scale)
-            vis[mask] = model.visibility(x[mask])
-            
+            #scale = self.input_scale[i]
+            pos = m.norm_coord(x[mask]).to(self.device)
+            pos *= self.input_scale[i]
+            vis[mask,sum(self._n_pmts_v[:i]):sum(self._n_pmts_v[:i+1])] += model._inv_xform_vis(model(pos))
+
         return vis.to(device)
+
+
+    def visibility(self, x):
+        
+        if len(x.shape) == 1:
+            x = x[None,:]
+        device = x.device
+
+        vis = torch.zeros(size=(x.shape[0],self.n_pmts),dtype=torch.float32,device=self.device)
+        vis_masks_pos = [[] for _ in range(max(self.model_ids)+1)]
+        vis_masks_pmt = [[] for _ in range(max(self.model_ids)+1)]
+        out_masks     = [[] for _ in range(max(self.model_ids)+1)]
+        norm_x        = [[] for _ in range(max(self.model_ids)+1)]
+        pos_ctr = [0 for _ in range(max(self.model_ids)+1)]
+        for i,rs in enumerate(self.children_meta):
+            m=AABox(rs)
+            mask = m.contain(x)
+            if mask.sum()<1: continue
+
+            model_idx = self.model_ids[i]
+
+            norm_x[model_idx].append(m.norm_coord(x[mask])*self.input_scale[i])
+            vis_masks_pos[model_idx].append(mask)
+            vis_masks_pmt[model_idx].append([sum(self._n_pmts_v[:i]),sum(self._n_pmts_v[:i+1])])
+            out_masks[model_idx].append([pos_ctr[model_idx],pos_ctr[model_idx]+mask.sum().item()])
+            pos_ctr[model_idx] += mask.sum().item()
+
+        for model_id,model in enumerate(self._model_v):
+
+            if model_id >= len(norm_x): break
+            if len(norm_x[model_id])<1: continue
+            out = model._inv_xform_vis(model(torch.concat(norm_x[model_id]).to(self.device)))
+            #out = model(torch.concat(norm_x[model_id]).to(self.device))            
+            # map back to vis array
+            for meta_idx in range(len(vis_masks_pmt[model_id])):
+                pos_mask = vis_masks_pos[model_id][meta_idx]
+                pmt_start,pmt_end = vis_masks_pmt[model_id][meta_idx]
+                out_start,out_end = out_masks[model_id][meta_idx]
+                vis[pos_mask,pmt_start:pmt_end] += out[out_start:out_end,:]
+
+        return vis.to(device)
+
 
     
     def forward(self, x):
@@ -137,15 +183,16 @@ class MultiVis(torch.nn.Module):
             x = x[None,:]
         device = x.device
 
-        out = torch.zeros(x.shape[0],dtype=torch.float32,device=self.device)
+        out = torch.zeros(size=(x.shape[0],self.n_pmts),dtype=torch.float32,device=self.device)
         
         for i,rs in enumerate(self.children_meta):
             m = AABox(rs)
             mask = m.contain(x)
+            if mask.sum()<1: continue
             model = self.model_array[self.model_ids[i]]
             scale = self.input_scale[i]
             model.update_meta(meta=m,input_scale=scale)
-            out[mask] = model(m.norm_coord(x[mask]).to(self.device))
+            out[mask,sum(self._n_pmts_v[:i]):sum(self._n_pmts_v[:i+1])] += model(m.norm_coord(x[mask]).to(self.device))
             
         return out.to(device)
 
@@ -205,17 +252,18 @@ class MultiVis(torch.nn.Module):
         self.register_buffer('model_ids',     model_dict['model_ids'    ], persistent=False)
         self.register_buffer('children_meta', model_dict['children_meta'], persistent=False)
 
-        for i in range(self.model_ids.max()+1):
-            name='model%d' % i 
-            if not i in self.model_ids:
-                self._model_v.append(None)
-                continue
+        self._model_v = [None] * len(self.model_ids)
+        for mid in self.model_ids:
+            name='model%d' % mid
             if not name in model_dict:
                 raise KeyError(f'Model {name} not found !')
-            print(f'[MultiVis] Creating SirenVis as {name}')
-            model = SirenVis.create_from_model_dict(model_dict[name])
-            self.add_module(name,model)
-            self._model_v.append(getattr(self,name))
+            if self._model_v[mid] is None:
+                print(f'[MultiVis] Creating SirenVis as {name}')
+                model = SirenVis.create_from_model_dict(model_dict[name])
+                self.add_module(name,model)
+                self._model_v[mid] = getattr(self,name)
+
+            self._n_pmts_v.append(self._model_v[mid].n_pmts)
 
     def load_state(self, model_path):
         '''
@@ -236,10 +284,36 @@ class MultiVis(torch.nn.Module):
             self.load_model_dict(model_dict)
             
     @classmethod
-    def create_from_ckpt(cls, model_path):
-        print('[MultiVis] creating from checkpoint',model_path)
-        with open(model_path, 'rb') as f:
+    def load(cls, cfg_or_fname: str | dict):
+        '''
+        Constructor method that can take either a config dictionary or the data file path
 
-            model_dict = torch.load(f, map_location='cpu')            
+        Parameters
+        ----------
+        cfg_or_fname : str
+            If string type, it is interpreted as a path to a photon library data file.
+            If dictionary type, it is interpreted as a configuration.
+        '''
 
-            self.load_model_dict(model_dict)
+        if isinstance(cfg_or_fname,dict):
+            if not 'multivis' in cfg_or_fname:
+                raise KeyError('The configuration dictionary must contain multivis')
+            if 'ckpt_file' in cfg_or_fname['multivis']:
+                filepath=cfg_or_fname['multivis']['ckpt_file']
+            else:
+                return cls(cfg_or_fname)
+        elif isinstance(cfg_or_fname,str):
+            filepath=cfg_or_fname
+        else:
+            raise ValueError(f'The argument of load function must be str or dict (received {cfg_or_fname} {type(cfg_or_fname)})')
+
+        print('[MultiVis] creating from checkpoint',filepath)
+        with open(filepath,'rb') as f:
+
+            model_dict = torch.load(f, map_location='cpu')
+
+            out = cls()
+
+            out.load_model_dict(model_dict)
+
+            return out

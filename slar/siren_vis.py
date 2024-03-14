@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 import numpy as np
 import tqdm
@@ -59,9 +61,6 @@ class SirenVis(Siren):
 
         self._n_outs = self.config_model['network']['out_features']
 
-        input_scale = torch.ones(size=(self.config_model['network']['in_features'],),dtype=torch.float32)
-        self.register_buffer('input_scale', input_scale, persistent=True)
-
         if self.config_model.get('ckpt_file'):
             print('[SirenVis] loading the state. Only "network" configuration used.)')
             self.load_state(self.config_model['ckpt_file'])
@@ -112,10 +111,8 @@ class SirenVis(Siren):
         return self._n_outs    
 
 
-    def update_meta(self, ranges:torch.Tensor, input_scale:torch.Tensor=None):
+    def update_meta(self, ranges:torch.Tensor):
         self._meta.update(ranges)
-        if input_scale is not None:
-            self.input_scale[:] = input_scale
 
     def visibility(self, x):
         '''
@@ -158,8 +155,8 @@ class SirenVis(Siren):
         '''
         assert not torch.any(torch.lt(x,-1) | torch.gt(x,1)), f"The input contains a value out of range [-1,1]"
 
-        out = super().forward(x * self.input_scale)
-        
+        out = super().forward(x)
+
         if self._do_hardsigmoid:
             out =  torch.nn.functional.hardsigmoid(out)
             
@@ -188,7 +185,7 @@ class SirenVis(Siren):
         '''
         Stores the network model and optimizer (and some hyper-) parameters to a binary file.
 
-
+gpu
         Parameters
         ----------        
         filename : str
@@ -234,8 +231,8 @@ class SirenVis(Siren):
 
         # 2024-03-04 Kazu - For backward compatibility
         state_dict = model_dict['state_dict']
-        if not 'input_scale' in state_dict:
-            state_dict['input_scale' ] = self.input_scale
+        if 'input_scale' in state_dict:
+            state_dict.pop('input_scale')
         if 'scale' in model_dict.keys():
             state_dict['output_scale'] = model_dict['scale']
         #if not hasattr(self,'output_scale'):
@@ -243,35 +240,37 @@ class SirenVis(Siren):
 
         self.load_state_dict(model_dict['state_dict'])
 
-
-    def load_state(self, model_path):
+    @classmethod
+    def load(cls, cfg_or_fname: str | dict ):
         '''
-        Loads the network model and optimizer (and some hyper-) parameters from a binary file.
+        Constructor method that can take either a config dictionary or the data file path
 
         Parameters
         ----------
-        model_path : str
-            The checkpoint file name from which parameter values are loaded.
-
+        cfg_or_fname : str
+            If string type, it is interpreted as a path to a photon library data file.
+            If dictionary type, it is interpreted as a configuration.
         '''
 
-        iteration = 0
-        print('[SirenVis] loading the state',model_path)
-        with open(model_path, 'rb') as f:
+        if isinstance(cfg_or_fname,dict):
+            if not 'model' in cfg_or_fname:
+                raise KeyError('The configuration dictionary must contain model')
+            if 'ckpt_file' in cfg_or_fname['model']:
+                filepath=cfg_or_fname['model']['ckpt_file']
+            else:
+                return cls(cfg_or_fname)
+        elif isinstance(cfg_or_fname,str):
+            filepath=cfg_or_fname
+        else:
+            raise ValueError(f'The argument of load function must be str or dict (received {cfg_or_fname} {type(cfg_or_fname)})')
 
-            model_dict = torch.load(f, map_location='cpu')            
-
-            self.load_model_dict(model_dict)
-
-
-    @classmethod
-    def create_from_ckpt(cls, ckpt_file):
-
-        with open(ckpt_file,'rb') as f:
+        print('[SirenVis] creating from checkpoint',filepath)
+        with open(filepath,'rb') as f:
 
             model_dict = torch.load(f, map_location='cpu')
 
             return cls.create_from_model_dict(model_dict)
+
 
     @classmethod
     def create_from_model_dict(cls, model_dict):
