@@ -25,7 +25,7 @@ class SirenVis(Siren):
     Siren class implementation for LArTPC optical photon transport
     '''
     
-    def __init__(self, cfg : dict, state_data : str = None, meta = None):
+    def __init__(self, cfg : dict, meta = None):
         '''
         Constructor takes two different modes depending on the arguments.
 
@@ -43,7 +43,7 @@ class SirenVis(Siren):
             
             This mode is enabled if cfg['model']['ckpt_file'] is provided.
             
-            Other than the model architecture, all attributes are loaded from the state_data.
+            Other than the model architecture, all attributes are loaded from the ckpt_file.
             This is to ensure the configuration used for training, and hence for the model stored
             in the ckpt_file, to remain the same after loading the state. 
 
@@ -62,8 +62,11 @@ class SirenVis(Siren):
         self._n_outs = self.config_model['network']['out_features']
 
         if self.config_model.get('ckpt_file'):
-            print('[SirenVis] loading the state. Only "network" configuration used.)')
-            self.load_state(self.config_model['ckpt_file'])
+            filepath=self.config_model.get('ckpt_file')
+            print('[SirenVis] creating from checkpoint',filepath)
+            with open(filepath,'rb') as f:
+                model_dict = torch.load(f, map_location='cpu')
+                self.load_model_dict(model_dict)
             return
 
         # create meta
@@ -79,6 +82,7 @@ class SirenVis(Siren):
         # extensions for visiblity model
         self._init_output_scale(self.config_model)
         self._do_hardsigmoid = self.config_model.get('hardsigmoid', False)
+
 
     @property
     def meta(self):
@@ -309,6 +313,4 @@ gpu
             self.register_buffer('output_scale', output_scale, persistent=True)
         else:
             self.register_parameter('output_scale', torch.nn.Parameter(output_scale))
-
-
 
