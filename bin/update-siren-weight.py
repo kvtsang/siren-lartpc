@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import torch, sys, yaml, os
 
 if not len(sys.argv) == 3:
@@ -28,8 +29,10 @@ with open(sys.argv[1], 'rb') as fin:
         if key_to_pop in model_dict.keys():
             model_dict.pop(key_to_pop)
 
-    model_dict['xform_cfg'] = config['transform_vis']
+    model_dict['xform_cfg'] = config.get('transform_vis')
     model_dict['model_cfg'] = config['model']
+    if 'scale' in model_dict['state_dict']:
+        model_dict['state_dict']['output_scale'] = model_dict['state_dict'].pop('scale')
 
     print(f'Keys in the output ({OUTPUT}):')
     for k in model_dict:

@@ -135,10 +135,16 @@ class SirenVis(Siren):
             Holds the visibilities in linear scale for the position(s) x.
         '''
         device = x.device 
-
-        out = self(self.meta.norm_coord(x).to(self.device)).to(device)
-
-        return self._inv_xform_vis(out)
+        pos = x
+        squeeze=False
+        if len(x.shape) == 1:
+            pos = pos[None,:]
+            squeeze=True
+        vis = torch.zeros(size=(pos.shape[0],self.n_pmts),dtype=torch.float32).to(self.device)
+        mask = self.meta.contain(pos)
+        vis[mask] = self(self.meta.norm_coord(pos[mask]).to(self.device)).to(device)
+        vis[mask] = self._inv_xform_vis(vis[mask])
+        return vis if not squeeze else vis.squeeze()
 
 
     def forward(self, x):
@@ -217,8 +223,10 @@ gpu
         self.config_xform = model_dict.get('xform_cfg')
         if self.config_model is None:
             raise KeyError('The model dictionary is lacking the "model_cfg" data')
-        if self.config_xform is None:
-            raise KeyError('The model dictionary is lacking the "xform_cfg" data')
+        
+        # 2024-03-14 xform_cfg can be None        
+        #if self.config_xform is None:
+        #    raise KeyError('The model dictionary is lacking the "xform_cfg" data')
 
         # 2024-03-11 Kazu - for backward compatibility
         #if 'do_hardsigmoid' in model_dict:
