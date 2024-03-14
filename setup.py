@@ -14,7 +14,7 @@ setup(
     description='Sinusoidal Representation Network',
     license='MIT',
     keywords='siren',
-    scripts=['bin/train-siren.py','bin/download_icarus_ckpt.sh'],
+    scripts=['bin/train-siren.py','bin/download_icarus_ckpt.sh','bin/update-siren-weight.py'],
     packages=['slar'],
     package_data={'slar': ['config/*.yaml']},
     install_requires=[
@@ -24,6 +24,7 @@ setup(
         'scikit-build',
         'torch',
         'photonlib',
+        'gdown',
     ],
     long_description=long_description,
     long_description_content_type='text/markdown',
