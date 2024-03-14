@@ -24,6 +24,7 @@ setup(
         'scikit-build',
         'torch',
         'photonlib',
+        'gdown',
     ],
     long_description=long_description,
     long_description_content_type='text/markdown',
