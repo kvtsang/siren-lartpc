@@ -3,6 +3,7 @@ from __future__ import annotations
 from photonlib import AABox
 from slar.nets import SirenVis
 import torch
+
 class MultiVis(torch.nn.Module):
 
     def __init__(self, cfg : dict=None):
@@ -13,26 +14,41 @@ class MultiVis(torch.nn.Module):
         self._model_v = []
         self._n_pmts_v = []
         
-        if cfg is not None:
-            self.configure(cfg)
+        if cfg is None: return
+
+        self.config = cfg.get('multivis')
+        if isinstance(self.config,dict):
+
+            if 'ckpt_file' in self.config:
+                filepath = self.config['ckpt_file']
+                print('[MultiVis] creating from checkpoint',filepath)
+                with open(filepath,'rb') as f:
+
+                    model_dict = torch.load(f, map_location='cpu')
+
+                    self.load_model_dict(model_dict)
+
+            else:
+                print('[MultiVis] creating from a configuration dict...')
+                self.configure(cfg)
             
             
     def configure(self, cfg : dict):
-
+        print('\n[MultiVis] configuring')
         self.config = dict(cfg)
         self.mvis_config   = cfg['multivis']
         weights     = self.mvis_config.get('weights',     [])
         weight_id   = self.mvis_config.get('weight_id',   [])
         input_scale = self.mvis_config.get('input_scale', [])
         aabox       = self.mvis_config.get('aabox',       [])
-        
         if len(weights) and len(weight_id):
             # Validate config
             assert len(weight_id) == len(input_scale) == len(aabox), \
             f"weight_id ({len(weight_id)}), input_scale ({len(input_scale)}), aabox ({len(aabox)}) must be the same length."
             assert max(weight_id) < len(weights), f"weight_id max value ({max(weight_id)}) must be less than {len(weights)}"
-            
-            for w in weights:
+        
+            for i,w in enumerate(weights):
+                print(f'[MultiVis] adding {i+1}/{len(weights)} SirenVis instances...\n')
                 self.add_model(SirenVis.load(w))
             
             aabox = torch.as_tensor(aabox)
@@ -40,8 +56,9 @@ class MultiVis(torch.nn.Module):
                 m = AABox(aabox[i].T.reshape(3,2))
                 self.add_meta(weight_id[i],m,input_scale[i])
                 
-            return
-        
+        print('[MultiVis] configure finished\n')
+        return
+
     @property
     def n_pmts(self):
         return sum(self._n_pmts_v)
@@ -243,9 +260,9 @@ class MultiVis(torch.nn.Module):
         model_dict : dict
             Contains all model parameters necessary to re-instantiate the mode at the checkpoint.
 
-        '''        
+        '''
         from photonlib import AABox
-        
+        print('[MultiVis] loading model_dict')
         self._meta = AABox(model_dict['meta_range'])
         self.register_buffer('meta_range',    model_dict['meta_range'   ], persistent=False)
         self.register_buffer('input_scale',   model_dict['input_scale'  ], persistent=False)
@@ -264,6 +281,8 @@ class MultiVis(torch.nn.Module):
                 self._model_v[mid] = getattr(self,name)
 
             self._n_pmts_v.append(self._model_v[mid].n_pmts)
+        print('[MultiVis] loading finished\n')
+
 
     def load_state(self, model_path):
         '''
@@ -301,6 +320,7 @@ class MultiVis(torch.nn.Module):
             if 'ckpt_file' in cfg_or_fname['multivis']:
                 filepath=cfg_or_fname['multivis']['ckpt_file']
             else:
+                print('[MultiVis] creating from a configuration dict...')
                 return cls(cfg_or_fname)
         elif isinstance(cfg_or_fname,str):
             filepath=cfg_or_fname
