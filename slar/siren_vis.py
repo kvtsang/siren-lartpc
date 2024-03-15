@@ -63,7 +63,7 @@ class SirenVis(Siren):
 
         if self.config_model.get('ckpt_file'):
             filepath=self.config_model.get('ckpt_file')
-            print('[SirenVis] creating from checkpoint',filepath)
+            print('[SirenVis] loading model_dict from checkpoint',filepath)
             with open(filepath,'rb') as f:
                 model_dict = torch.load(f, map_location='cpu')
                 self.load_model_dict(model_dict)
@@ -206,9 +206,9 @@ gpu
             The epoch count of training.
         '''
         
-        print('[SirenVis] saving the state ',filename)
+        print('[SirenVis] saving model_dict ',filename)
         torch.save(self.model_dict(opt,epoch),filename)
-
+        print('[SirenVis] saving finished')
 
     def load_model_dict(self, model_dict):
         '''
@@ -219,6 +219,8 @@ gpu
             Contains all model parameters necessary to re-instantiate the mode at the checkpoint.
 
         '''
+        print('[SirenVis] loading model_dict')
+
         self.config_model = model_dict.get('model_cfg')
         self.config_xform = model_dict.get('xform_cfg')
         if self.config_model is None:
@@ -252,6 +254,9 @@ gpu
 
         self.load_state_dict(model_dict['state_dict'])
 
+        print('[SirenVis] loading finished\n')
+
+
     @classmethod
     def load(cls, cfg_or_fname: str | dict ):
         '''
@@ -263,13 +268,13 @@ gpu
             If string type, it is interpreted as a path to a photon library data file.
             If dictionary type, it is interpreted as a configuration.
         '''
-
         if isinstance(cfg_or_fname,dict):
             if not 'model' in cfg_or_fname:
                 raise KeyError('The configuration dictionary must contain model')
             if 'ckpt_file' in cfg_or_fname['model']:
                 filepath=cfg_or_fname['model']['ckpt_file']
             else:
+                print('[MultiVis] creating from a configuration dict...')
                 return cls(cfg_or_fname)
         elif isinstance(cfg_or_fname,str):
             filepath=cfg_or_fname
@@ -288,6 +293,9 @@ gpu
     def create_from_model_dict(cls, model_dict):
 
         cfg = dict(model=model_dict['model_cfg'], transform_vis=model_dict['xform_cfg'])
+
+        if 'ckpt_file' in cfg['model']:
+            cfg['model'].pop('ckpt_file')
 
         net = cls(cfg)
 
