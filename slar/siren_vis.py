@@ -84,6 +84,11 @@ class SirenVis(Siren):
         self._do_hardsigmoid = self.config_model.get('hardsigmoid', False)
 
 
+    def to(self,device):
+        self._meta = self._meta.ranges.to(device)
+        super().to(device)
+        return self
+
     @property
     def meta(self):
         '''
@@ -135,6 +140,7 @@ class SirenVis(Siren):
             Holds the visibilities in linear scale for the position(s) x.
         '''
         device = x.device 
+        x = x.to(self.device)
         pos = x
         squeeze=False
         if len(x.shape) == 1:
