@@ -31,7 +31,11 @@ class MultiVis(torch.nn.Module):
             else:
                 print('[MultiVis] creating from a configuration dict...')
                 self.configure(cfg)
-            
+         
+    def to(self,device):
+        self._meta = self._meta.to(device)
+        super().to(device)
+        return self   
             
     def configure(self, cfg : dict):
         print('\n[MultiVis] configuring')
@@ -157,6 +161,7 @@ class MultiVis(torch.nn.Module):
         if len(x.shape) == 1:
             x = x[None,:]
         device = x.device
+        x = x.to(self.device)
 
         vis = torch.zeros(size=(x.shape[0],self.n_pmts),dtype=torch.float32,device=self.device)
         vis_masks_pos = [[] for _ in range(max(self.model_ids)+1)]
@@ -199,6 +204,7 @@ class MultiVis(torch.nn.Module):
         if len(x.shape) == 1:
             x = x[None,:]
         device = x.device
+        x = x.to(self.device)
 
         out = torch.zeros(size=(x.shape[0],self.n_pmts),dtype=torch.float32,device=self.device)
         
@@ -263,11 +269,11 @@ class MultiVis(torch.nn.Module):
         '''
         from photonlib import AABox
         print('[MultiVis] loading model_dict')
-        self._meta = AABox(model_dict['meta_range'])
         self.register_buffer('meta_range',    model_dict['meta_range'   ], persistent=False)
         self.register_buffer('input_scale',   model_dict['input_scale'  ], persistent=False)
         self.register_buffer('model_ids',     model_dict['model_ids'    ], persistent=False)
         self.register_buffer('children_meta', model_dict['children_meta'], persistent=False)
+        self._meta = AABox(self.meta_range)
 
         self._model_v = [None] * len(self.model_ids)
         for mid in self.model_ids:
