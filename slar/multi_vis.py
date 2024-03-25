@@ -13,7 +13,8 @@ class MultiVis(torch.nn.Module):
         self._meta = None
         self._model_v = []
         self._n_pmts_v = []
-        
+        self._aabox_array = []
+
         if cfg is None: return
 
         self.config = cfg.get('multivis')
@@ -62,6 +63,12 @@ class MultiVis(torch.nn.Module):
                 
         print('[MultiVis] configure finished\n')
         return
+
+    def contain(self, pts):
+        barray = torch.zeros(size=(len(pts),)).bool()
+        for box in self._aabox_array:
+            barray = barray | box.contain(pts)
+        return barray
 
     @property
     def n_pmts(self):
@@ -112,6 +119,7 @@ class MultiVis(torch.nn.Module):
                 if m.overlaps(meta):
                     raise ValueError(f'The provided meta \n{meta}overlaps with one of registered meta \n{m}')
             self.children_meta = torch.cat([self.children_meta,meta.ranges[None,:]])
+            self._aabox_array.append(AABox(self.children_meta[-1]))
 
         # Update own meta
         if self._meta is None:
@@ -170,7 +178,8 @@ class MultiVis(torch.nn.Module):
         norm_x        = [[] for _ in range(max(self.model_ids)+1)]
         pos_ctr = [0 for _ in range(max(self.model_ids)+1)]
         for i,rs in enumerate(self.children_meta):
-            m=AABox(rs)
+            #m=AABox(rs)
+            m = self._aabox_array[i]
             mask = m.contain(x)
             if mask.sum()<1: continue
 
@@ -209,7 +218,8 @@ class MultiVis(torch.nn.Module):
         out = torch.zeros(size=(x.shape[0],self.n_pmts),dtype=torch.float32,device=self.device)
         
         for i,rs in enumerate(self.children_meta):
-            m = AABox(rs)
+            #m = AABox(rs)
+            m = self._aabox_array[i]
             mask = m.contain(x)
             if mask.sum()<1: continue
             model = self.model_array[self.model_ids[i]]
@@ -274,6 +284,9 @@ class MultiVis(torch.nn.Module):
         self.register_buffer('model_ids',     model_dict['model_ids'    ], persistent=False)
         self.register_buffer('children_meta', model_dict['children_meta'], persistent=False)
         self._meta = AABox(self.meta_range)
+        self._aabox_array=[]
+        for r in self.children_meta:
+            self._aabox_array.append(AABox(r))
 
         self._model_v = [None] * len(self.model_ids)
         for mid in self.model_ids:

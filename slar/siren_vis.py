@@ -89,6 +89,9 @@ class SirenVis(Siren):
         super().to(device)
         return self
 
+    def contain(self, pts):
+        return self.meta.contain(pts)
+
     @property
     def meta(self):
         '''
