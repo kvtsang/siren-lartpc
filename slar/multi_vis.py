@@ -229,7 +229,7 @@ class MultiVis(torch.nn.Module):
             
         return out.to(device)
 
-    def model_dict(self, opt=None, epoch=-1):
+    def model_dict(self, opt=None, sch=None, epoch=-1):
         
         
         # It's possible to save all underlying models with self.state_dict()
@@ -246,11 +246,13 @@ class MultiVis(torch.nn.Module):
             model_dict['model%d'%i] = model.model_dict()
         if opt:
             model_dict['optimizer'] = opt.state_dict()
+        if sch:
+            model_dict['scheduler'] = sch.state_dict()
         if epoch>=0:
             model_dict['epoch'] = epoch
         return model_dict
 
-    def save_state(self, filename, opt=None, epoch=-1):
+    def save_state(self, filename, opt=None, sch=None, epoch=-1):
         '''
         Stores the network model and optimizer (and some hyper-) parameters to a binary file.
 
@@ -266,7 +268,7 @@ class MultiVis(torch.nn.Module):
         '''
         
         print('[MultiVis] saving the state ',filename)
-        torch.save(self.model_dict(opt,epoch),filename)
+        torch.save(self.model_dict(opt,sch,epoch),filename)
 
     def load_model_dict(self, model_dict):
         '''
