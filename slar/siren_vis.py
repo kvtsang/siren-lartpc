@@ -85,7 +85,7 @@ class SirenVis(Siren):
 
 
     def to(self,device):
-        self._meta = self._meta.ranges.to(device)
+        self._meta._ranges = self._meta.ranges.to(device)
         super().to(device)
         return self
 
