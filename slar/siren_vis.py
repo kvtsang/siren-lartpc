@@ -85,7 +85,7 @@ class SirenVis(Siren):
 
 
     def to(self,device):
-        self._meta._ranges = self._meta.ranges.to(device)
+        self._meta.to(device)
         super().to(device)
         return self
 
@@ -184,7 +184,7 @@ class SirenVis(Siren):
         return out
 
 
-    def model_dict(self, opt=None, epoch=-1):
+    def model_dict(self, opt=None, sch=None, epoch=-1):
         model_dict=dict(state_dict  = self.state_dict(),
                         xform_cfg   = self.config_xform,
                         model_cfg   = self.config_model,
@@ -196,11 +196,13 @@ class SirenVis(Siren):
         #    state_dict['output_scale'] = self.output_scale 
         if opt:
             model_dict['optimizer'] = opt.state_dict()
+        if sch:
+            model_dict['scheduler'] = sch.state_dict()
         if epoch>=0:
             model_dict['epoch'] = epoch
         return model_dict
 
-    def save_state(self, filename, opt=None, epoch=-1):
+    def save_state(self, filename, opt=None, sch=None, epoch=-1):
         '''
         Stores the network model and optimizer (and some hyper-) parameters to a binary file.
 
@@ -216,7 +218,7 @@ gpu
         '''
         
         print('[SirenVis] saving model_dict ',filename)
-        torch.save(self.model_dict(opt,epoch),filename)
+        torch.save(self.model_dict(opt,sch,epoch),filename)
         print('[SirenVis] saving finished')
 
     def load_model_dict(self, model_dict):
