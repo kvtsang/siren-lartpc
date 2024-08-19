@@ -1,4 +1,3 @@
-from inspect import signature
 import yaml
 import torch
 import pytest
@@ -43,9 +42,9 @@ def test_PLibDataLoader_ctor(cfg_default, cfg_empty):
     ds_empty = PLibDataLoader(cfg_empty)
 
     for k,v in cfg_default['transform_vis'].items():
-        assert signature(ds.xform_vis).parameters[k].default==v, \
+        assert getattr(ds.xform_vis, k)==v, \
             'xform_vis parameter(s) not assigned correctly'
-        assert signature(ds.inv_xform_vis).parameters[k].default==v, \
+        assert getattr(ds.inv_xform_vis, k)==v, \
             'inv_xform_vis parameter(s) not assigned correctly'
 
     assert ds.get_weight==ds.get_weight_by_vis,  'incorrect weighing scheme'

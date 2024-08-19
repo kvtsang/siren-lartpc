@@ -49,8 +49,10 @@ def test_PhotonLibDataset_constructor(cfg_filled, cfg_empty):
     
     # test visibility transforms are as expected
     for k,v in cfg_filled['transform_vis'].items():
-        assert signature(ds_filled.xform_vis).parameters[k].default == v, "Dataset does not assign parameters from config to xform_vis"
-        assert signature(ds_filled.inv_xform_vis).parameters[k].default == v, "Dataset does not assign parameters from config to inv_xform_vis"
+        assert getattr(ds_filled.xform_vis, k)==v, \
+            "Dataset does not assign parameters from config to xform_vis"
+        assert getattr(ds_filled.inv_xform_vis, k)==v, \
+            "Dataset does not assign parameters from config to inv_xform_vis"
 
     # make sure visibilities are as expected
     assert torch.allclose(ds.visibilities, ds.xform_vis(ds.plib.vis)), "Dataset visibilities haven't been transformed!"

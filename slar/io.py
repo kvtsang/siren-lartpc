@@ -1,7 +1,7 @@
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
-from slar.transform import partial_xform_vis
+from slar.transform import transform_factory
 from photonlib import PhotonLib
 
 class PhotonLibDataset(Dataset):
@@ -43,11 +43,10 @@ class PhotonLibDataset(Dataset):
         
         # tranform visiblity in pseudo-log scale (default: False)
         xform_params = cfg.get('transform_vis')
-        if xform_params:
-            print('[PhotonLibDataset] using log scale transformaion')
-            print('[PhotonLibDataset] transformation params',xform_params)
+        self.xform_vis, self.inv_xform_vis = transform_factory(xform_params)
+        print('[PhotonLibDataset]', self.xform_vis.__class__)
+        print('[PhotonLibDataset] transformation params',xform_params)
 
-        self.xform_vis, self.inv_xform_vis = partial_xform_vis(xform_params)
    
         self.visibilities = self.xform_vis(self.plib.vis)
         
@@ -169,11 +168,9 @@ class PLibDataLoader:
 
         # tranform visiblity in pseudo-log scale (default: False)
         xform_params = cfg.get('transform_vis')
-        if xform_params:
-            print('[PLibDataLoader] using log scale transformaion')
-            print('[PLibDataLoader] transformation params',xform_params)
-
-        self.xform_vis, self.inv_xform_vis = partial_xform_vis(xform_params)
+        self.xform_vis, self.inv_xform_vis = transform_factory(xform_params)
+        print('[PLibDataLoader]', self.xform_vis.__class__)
+        print('[PLibDataLoader] transformation params',xform_params)
 
         # prepare dataloader
         loader_cfg = cfg.get('data',{}).get('loader')

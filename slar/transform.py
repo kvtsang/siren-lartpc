@@ -92,3 +92,200 @@ def partial_xform_vis(kwargs):
     else:
         identity = lambda x, lib=None: x
         return identity, identity
+
+class RescaleTransform(torch.nn.Module):
+    ''' 
+    Rescale the range of tensor from `[vmin,vmax]` to `[0,1]` or `[-1,1]`.
+
+    Arguments
+    ---------
+    vmin: float | torch.Tensor
+        Lower bound of the input. It maps to 0 or -1 (when `sin_out = True`).
+    vmax : float | torch.Tensor
+        Upper bound of the input. It maps to 1.
+    sin_out: bool (optional)
+        Rescale to `[-1,1]` instead of `[0,1]` (default: False).
+
+    
+    Example
+    -------
+        >>> rescale = RescaleTransform(vmin=-5, vmax=5)
+        >>> x = torch.linspace(-5, 5, 21)
+        tensor([-5.0, -4.5, -4.0, -3.5, ..., 5.0])
+        >>> rescale(x)
+        tensor([0.00, 0.05, 0.10, 0.15, ..., 1.00])
+    '''
+    def __init__(self, vmin, vmax, sin_out=False):
+        super().__init__()
+        self.register_buffer('vmin', torch.as_tensor(vmin), persistent=False)
+        self.register_buffer('vmax', torch.as_tensor(vmax), persistent=False)
+        self.sin_out = sin_out
+        
+    def forward(self, x):
+        y = (x - self.vmin) / (self.vmax - self.vmin)
+        
+        if self.sin_out:
+            return 2*y - 1
+        return y
+    
+class InvRescaleTransform(torch.nn.Module):
+    '''
+    Inverse of :class:`RescaleTransform`.
+
+    Example
+    -------
+        >>> rescale = InvRescaleTransform(vmin=-5, vmax=5)
+        >>> inv_rescale = InvRescaleTransform(vmin=-5, vmax=5)
+        >>> x = torch.linspace(-5, 5, 21)
+        tensor([-5.0, -4.5, -4.0, -3.5, ..., 5.0])
+        >>> inv_rescale(rescale(x))
+        tensor([-5.0, -4.5, -4.0, -3.5, ..., 5.0])
+    '''
+    def __init__(self, vmin, vmax, sin_out=False):
+        super().__init__()
+
+        self.register_buffer('vmin', torch.as_tensor(vmin), persistent=False)
+        self.register_buffer('vmax', torch.as_tensor(vmax), persistent=False)
+        self.sin_out = sin_out
+        
+    def forward(self, x):
+        if self.sin_out:
+            x = (x+1) / 2
+        
+        y = x * (self.vmax - self.vmin) + self.vmin
+        
+        return y
+
+class PseudoLogTransform(torch.nn.Module):
+    '''
+    Taking pseudo-logarithm `log10(x+eps)` and rescale the output to `[0,1]` or
+    `[-1,1]`. Reimplantation of `xform_vis`.
+
+    Arguments
+    ---------
+    vmax: float | torch.Tensor
+        Upper bound of the input. The input range is `[0,max]`.
+
+    eps : float | torch.Tensor
+        A small number added to `log10(x+eps)` that allows `x=0`.
+
+    sin_out: bool (optional)
+        Rescale the output `[-1,1]`. Default: False, i.e. `[0,1]`.
+    '''
+    def __init__(self, vmax=1., eps=1e-7, sin_out=False):
+        super().__init__()
+        self.register_buffer('vmax', torch.as_tensor(vmax), persistent=False)
+        self.register_buffer('eps', torch.as_tensor(eps), persistent=False)
+        
+        log_vmin = torch.log10(self.eps)
+        log_vmax = torch.log10(self.vmax + self.eps)
+        self._rescale = RescaleTransform(log_vmin, log_vmax, sin_out)
+    
+    def forward(self, x):
+        y = torch.log10(x + self.eps)
+        return self._rescale(y)
+
+    @property
+    def sin_out(self):
+        return self._rescale.sin_out
+    
+class InvPseudoLogTransform(torch.nn.Module):
+    '''
+    Inverse of :class:`PseudoLogTransform`  Reimplantation of `inv_xform_vis`.
+    '''
+    def __init__(self, vmax=1., eps=1e-7, sin_out=False):
+        super().__init__()
+        self.register_buffer('vmax', torch.as_tensor(vmax), persistent=False)
+        self.register_buffer('eps', torch.as_tensor(eps), persistent=False)
+        
+        log_vmin = torch.log10(self.eps)
+        log_vmax = torch.log10(self.vmax + self.eps)
+        self._inv_rescale = InvRescaleTransform(log_vmin, log_vmax, sin_out)
+    
+    def forward(self, x):
+        y = self._inv_rescale(x)
+        y = torch.pow(10., y) - self.eps
+        return y
+
+    @property
+    def sin_out(self):
+        return self._inv_rescale.sin_out
+
+def transform_factory(cfg):
+    '''
+    Factory to create transformation and its inverse.
+
+    Arguments
+    ---------
+    cfg : dict | None
+        Configuration dictionary. If `None`, returns identity transformation.
+
+        Type of tranformation are given by `cfg['method']`.
+        `identity`   : no transformation
+        `pseudo_log` : default, use :class:`PseudoLogTransform` and its inverse
+        `rescale`    : use :class:`RescaleTransform` and its inverse
+
+        The rest are keyward arguments to the class constructor.
+
+    Returns
+    -------
+    xform, inv_xform: 
+        Transformation and its inverse.
+
+    Example
+    -------
+
+        Identity 
+        >>> cfg = None 
+        >>> cfg = dict(method='identity') ## also works
+        >>> x = torch.linspace(0, 0.9, 101)
+        >>> xform, inv_form = transform_factroy(cfg)
+        >>> torch.allclose(x, xform(x))
+        True
+        >>> torch.allclose(x, inv_xform(x))
+        True
+
+        Pseudo-Log
+        >>> cfg = dict(vmax=0.9, eps=1e-5)
+        >>> cfg = dict(method='pseudo_log', vmax=0.9, eps=1e-5) ## same as above
+        >>> x = torch.linspace(0, 0.9, 101)
+        >>> xform, inv_xform = transform_factroy(cfg)
+        >>> y = xform(x)
+        >>> torch.allclose(x, inv_xform(y))
+        True
+
+        Rescale linearly
+        >>> cfg = dict(method='rescale', vmin=0.1, vmax=0.9)
+        >>> x = torch.linspace(0.1, 0.9, 101)
+        >>> y = torch.linspace(0, 1, 101)
+        >>> xform, inv_form = transform_factroy(cfg)
+        >>> torch.allclose(y, xform(x))
+        True
+        >>> torch.allclose(x, inv_xform(y))
+        True
+    '''
+
+    identity = torch.nn.Identity()
+    if cfg is None:
+        return identity, identity
+
+    kwargs = cfg.copy()
+    method = kwargs.pop('method', 'pseudo_log')
+
+    if method == 'identity':
+        identity = torch.nn.Identity()
+        return identity, identity
+
+    if method == 'pseudo_log':
+        xform  = PseudoLogTransform(**kwargs)
+        inv_xform = InvPseudoLogTransform(**kwargs)
+        return xform, inv_xform
+
+    elif method == 'rescale':
+        xform = RescaleTransform(**kwargs)
+        inv_xform = InvRescaleTransform(**kwargs)
+        return xform, inv_xform
+
+    raise NotImplementedError(
+        method, 'is not one of identity, pseudo_log, rescale'
+    )

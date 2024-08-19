@@ -6,7 +6,7 @@ import pytest
 import torch
 import yaml
 from slar.nets import SirenVis
-from slar.transform import partial_xform_vis
+from slar.transform import PseudoLogTransform, InvPseudoLogTransform
 from slar.utils import to_plib
 
 from photonlib import PhotonLib
@@ -54,11 +54,11 @@ def test_SirenVis_init(cfg, rng):
     assert isinstance(net.meta, AABox), 'meta is not AABox'
     assert net.device.type == 'cpu', 'device is not cpu'
     
-    exp_xform_vis, exp_inv_xform_vis = partial_xform_vis(cfg['transform_vis'])
-    assert signature(exp_xform_vis) == signature(net._xform_vis), 'xform_vis does not have expected signature'
-    assert signature(exp_inv_xform_vis) == signature(net._inv_xform_vis), 'inv_xform_vis does not have expected signature'
-    
-    
+    assert isinstance(net._xform_vis, PseudoLogTransform), \
+        'xform_vis is not PseudoLogTransform'
+
+    assert isinstance(net._inv_xform_vis, InvPseudoLogTransform), \
+        'inv_xform_vis is not InvPseudoLogTransform'
     
     # test init_output_scale
     assert hasattr(net, 'output_scale'), 'output_scale is not an attribute of the network'

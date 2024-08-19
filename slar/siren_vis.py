@@ -5,7 +5,7 @@ import numpy as np
 import tqdm
 
 from slar.base import Siren
-from slar.transform import partial_xform_vis
+from slar.transform import transform_factory
 from photonlib import AABox
 class WeightedL2Loss(torch.nn.Module):
     '''
@@ -77,7 +77,7 @@ class SirenVis(Siren):
 
         # transform functions
         self.config_xform = cfg.get('transform_vis')
-        self._xform_vis, self._inv_xform_vis = partial_xform_vis(self.config_xform)
+        self._xform_vis, self._inv_xform_vis = transform_factory(self.config_xform)
         
         # extensions for visiblity model
         self._init_output_scale(self.config_model)
@@ -249,7 +249,7 @@ gpu
 
         self._init_output_scale(self.config_model)
         self._do_hardsigmoid = self.config_model.get('hardsigmoid', False)
-        self._xform_vis, self._inv_xform_vis = partial_xform_vis(self.config_xform)
+        self._xform_vis, self._inv_xform_vis = transform_factory(self.config_xform)
 
         from photonlib import AABox
         self._meta = AABox(model_dict['aabox_ranges'])

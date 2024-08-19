@@ -5,6 +5,10 @@ from inspect import signature
 
 from tests.fixtures import torch_rng
 from slar.transform import partial_xform_vis, xform_vis, inv_xform_vis
+from slar.transform import (
+    RescaleTransform, InvRescaleTransform,
+    PseudoLogTransform, InvPseudoLogTransform
+)
 
 def is_monotonic(L):
     # not all increasing or not all decreasing
@@ -94,3 +98,48 @@ def test_partial_xform_vis():
     x = torch.pow(10, torch.linspace(-7, 0, 10000))
     assert torch.allclose(xform(x), x), "xform from partial_xform_vis without kwargs isn't the identity"
     assert torch.allclose(inv_xform(x), x), "inv_xform from partial_xform_vis without kwargs isn't the identity"
+
+def test_rescale():
+    vmin = -5.
+    vmax = 5.
+
+    # without sin_out
+    x = torch.linspace(vmin, vmax, 1001, dtype=float)
+    y = torch.linspace(0, 1, 1001, dtype=float)
+
+    rescale = RescaleTransform(vmin, vmax)
+    inv_rescale = InvRescaleTransform(vmin, vmax)
+
+    assert torch.allclose(y, rescale(x)), \
+        'RescaleTransform fails to map [-5,5] -> [0,1]'
+
+    assert torch.allclose(x, inv_rescale(y)), \
+        'InvRescaleTransform fails to map [0,1] -> [-5,5]'
+
+
+    # with sin_out
+    rescale_sin = RescaleTransform(vmin, vmax, sin_out=True)
+    inv_rescale_sin = InvRescaleTransform(vmin, vmax, sin_out=True)
+    y_sin = torch.linspace(-1, 1, 1001, dtype=float)
+
+    assert torch.allclose(y_sin, rescale_sin(x)), \
+        'RescaleTransform (sin_out) fails to map [-5,5] -> [-1,1]'
+
+    assert torch.allclose(x, inv_rescale_sin(y_sin)), \
+        'InvRescaleTransform (sin_out) fails to map [-1,1] -> [-5,5]'
+
+def test_pseudo_log():
+    vmax = 0.5
+    eps = 1e-5
+
+    x = torch.linspace(0, vmax, 1001)
+    y = torch.linspace(0, 1, 1001)
+
+    log_trans = PseudoLogTransform(vmax, eps)
+    inv_log_trans = InvPseudoLogTransform(vmax, eps)
+
+    assert torch.allclose(log_trans(x), xform_vis(x,vmax,eps)), \
+        'PseudoLogTransform != xform_vis'
+
+    assert torch.allclose(inv_log_trans(y), inv_xform_vis(y,vmax,eps)), \
+        'InvPseudoLogTransform != inv_xform_vis'
