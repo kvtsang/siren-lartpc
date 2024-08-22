@@ -168,7 +168,8 @@ class PLibDataLoader:
 
         # tranform visiblity in pseudo-log scale (default: False)
         xform_params = cfg.get('transform_vis')
-        self.xform_vis, self.inv_xform_vis = transform_factory(xform_params)
+        self.xform_vis, self.inv_xform_vis \
+            = transform_factory(xform_params, device=self.device)
         print('[PLibDataLoader]', self.xform_vis.__class__)
         print('[PLibDataLoader] transformation params',xform_params)
 

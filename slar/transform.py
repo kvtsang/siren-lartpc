@@ -211,7 +211,7 @@ class InvPseudoLogTransform(torch.nn.Module):
     def sin_out(self):
         return self._inv_rescale.sin_out
 
-def transform_factory(cfg):
+def transform_factory(cfg, device=None):
     '''
     Factory to create transformation and its inverse.
 
@@ -265,7 +265,7 @@ def transform_factory(cfg):
         True
     '''
 
-    identity = torch.nn.Identity()
+    identity = torch.nn.Identity().to(device)
     if cfg is None:
         return identity, identity
 
@@ -273,17 +273,16 @@ def transform_factory(cfg):
     method = kwargs.pop('method', 'pseudo_log')
 
     if method == 'identity':
-        identity = torch.nn.Identity()
         return identity, identity
 
     if method == 'pseudo_log':
-        xform  = PseudoLogTransform(**kwargs)
-        inv_xform = InvPseudoLogTransform(**kwargs)
+        xform  = PseudoLogTransform(**kwargs).to(device)
+        inv_xform = InvPseudoLogTransform(**kwargs).to(device)
         return xform, inv_xform
 
     elif method == 'rescale':
-        xform = RescaleTransform(**kwargs)
-        inv_xform = InvRescaleTransform(**kwargs)
+        xform = RescaleTransform(**kwargs).to(device)
+        inv_xform = InvRescaleTransform(**kwargs).to(device)
         return xform, inv_xform
 
     raise NotImplementedError(
