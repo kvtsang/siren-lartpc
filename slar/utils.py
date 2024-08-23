@@ -53,7 +53,7 @@ def to_plib(siren, meta, batch_size : int = None, device : torch.device = 'cpu')
 
 def list_available_devices():
     '''
-    List available devices [cpu|cuda|mps]
+    List available devices [cpu|cuda|cuda:i|mps]
 
     Returns
     -------
@@ -64,6 +64,10 @@ def list_available_devices():
 
     if torch.cuda.is_available():
         devs['cuda'] = torch.device('cuda:0')
+
+        device_count = torch.cuda.device_count()
+        for i in range(device_count):
+            devs['cuda:%d' % i] = torch.device('cuda:%d' % i)
         
     if torch.backends.mps.is_available():
         devs['mps'] = torch.device('mps')
