@@ -25,7 +25,9 @@ class MultiVis(torch.nn.Module):
                 print('[MultiVis] creating from checkpoint',filepath)
                 with open(filepath,'rb') as f:
 
-                    model_dict = torch.load(f, map_location='cpu')
+                    model_dict = torch.load(
+                        f, map_location='cpu', weights_only=True
+                    )
 
                     self.load_model_dict(model_dict)
 
@@ -319,7 +321,7 @@ class MultiVis(torch.nn.Module):
         print('[MultiVis] loading from checkpoint',model_path)
         with open(model_path, 'rb') as f:
 
-            model_dict = torch.load(f, map_location='cpu')            
+            model_dict = torch.load(f, map_location='cpu', weights_only=True)
 
             self.load_model_dict(model_dict)
             
@@ -351,7 +353,7 @@ class MultiVis(torch.nn.Module):
         print('[MultiVis] creating from checkpoint',filepath)
         with open(filepath,'rb') as f:
 
-            model_dict = torch.load(f, map_location='cpu')
+            model_dict = torch.load(f, map_location='cpu', weights_only=True)
 
             out = cls()
 
