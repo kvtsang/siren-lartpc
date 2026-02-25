@@ -65,7 +65,9 @@ class SirenVis(Siren):
             filepath=self.config_model.get('ckpt_file')
             print('[SirenVis] loading model_dict from checkpoint',filepath)
             with open(filepath,'rb') as f:
-                model_dict = torch.load(f, map_location='cpu')
+                model_dict = torch.load(
+                    f, map_location='cpu', weights_only=True
+                )
                 self.load_model_dict(model_dict)
             return
 
@@ -295,7 +297,7 @@ gpu
         print('[SirenVis] creating from checkpoint',filepath)
         with open(filepath,'rb') as f:
 
-            model_dict = torch.load(f, map_location='cpu')
+            model_dict = torch.load(f, map_location='cpu', weights_only=True)
 
             return cls.create_from_model_dict(model_dict)
 

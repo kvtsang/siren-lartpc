@@ -37,7 +37,7 @@ def load_optimizer_state(filename, opt, sch=None):
     '''
     epoch = 0
     with open(filename, 'rb') as f:
-        checkpoint = torch.load(f, map_location='cpu')
+        checkpoint = torch.load(f, map_location='cpu', weights_only=True)
         
         opt.load_state_dict(checkpoint['optimizer'])
         if 'epoch' in checkpoint.keys():
