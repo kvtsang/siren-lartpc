@@ -4,7 +4,7 @@ Transforms with hparams support for SirenVis."""
 from __future__ import annotations
 
 import math
-from typing import Union
+from typing import Union, Dict, Tuple, Any
 
 import torch
 import torch.nn as nn
@@ -283,4 +283,4 @@ def create_output_transform(
 # ------------------------------------------------------------------------------
 
 def _get_class_path(obj):
-    return f"{obj.__class__.__module__}.{self.__class__.__qualname__}"
+    return f"{obj.__class__.__module__}.{obj.__class__.__qualname__}"

@@ -50,6 +50,9 @@ def create_instance(config: dict = None, **kwargs) -> Any:
         params.pop("class", None)
         or params.pop("class_path", None)
     )
+    # Also pop the other key if both exist:
+    params.pop("class", None)
+    params.pop("class_path", None)
 
     if not class_path:
         raise ValueError(

@@ -26,9 +26,9 @@ import torch
 import torch.nn as nn
 import yaml
 
-from slar.base import Siren
+from slar.experimental.base import Siren
 from photonlib.experimental import AABox
-from photonlib.experimental.transform import Identity, create_output_transform
+from .transform import Identity, create_output_transform
 
 
 class SirenVis(nn.Module):
@@ -98,6 +98,8 @@ class SirenVis(nn.Module):
         xfmr: Optional[nn.Module] = None,
         xfmr_inv: Optional[nn.Module] = None,
     ):
+        self._hparams = {}
+
         super().__init__()
 
         # ---- AABox for coordinate normalisation & containment ---- #
@@ -121,7 +123,7 @@ class SirenVis(nn.Module):
         # ---- output transforms ---- #
         self.xfmr: nn.Module = xfmr if xfmr is not None else Identity()
         self.xfmr_inv: nn.Module = xfmr_inv if xfmr_inv is not None else Identity()
-
+        
     # ------------------------------------------------------------------ #
     #  Properties
     # ------------------------------------------------------------------ #
@@ -137,22 +139,13 @@ class SirenVis(nn.Module):
 
         Each sub‐component contributes its own ``hparams``.
         """
-        return dict(
-            in_features=self.siren.net[0].linear.in_features,
-            hidden_features=self.siren.net[0].linear.out_features,
-            hidden_layers=len(self.siren.net) - 2,
-            out_features=self.siren.net[-1].linear.out_features
-            if hasattr(self.siren.net[-1], "linear")
-            else self.siren.net[-1].out_features,
-            outermost_linear=not hasattr(self.siren.net[-1], "omega_0"),
-            first_omega_0=self.siren.net[0].omega_0,
-            hidden_omega_0=self.siren.net[1].omega_0
-            if len(self.siren.net) > 2
-            else 30.0,
+        hparams = dict(
             learnable_output_scale=self.learnable_output_scale,
             meta=self._meta.hparams,
             output_transform=self.xfmr.hparams,
         )
+        hparams.update(self.siren.hparams)
+        return hparams
 
     # ------------------------------------------------------------------ #
     #  Internal helpers
@@ -263,7 +256,7 @@ class SirenVis(nn.Module):
         SirenVis
             Fully initialised model with weights loaded.
         """
-        ckpt = torch.load(path, map_location=map_location)
+        ckpt = torch.load(path, weights_only=True, map_location=map_location)
         hparams = ckpt["hparams"]
 
         meta = AABox.from_hparams(hparams["meta"])
@@ -322,7 +315,7 @@ class SirenVis(nn.Module):
             * **meta** *(dict)* – forwarded to ``AABox.from_hparams``
 
               - ``{"ranges": [[lo, hi], ...]}``  or
-              - ``{"h5_file": "<path>"}``
+              - ``{"file": "<path>"}``
 
             * **output_transform** *(dict or None)* – forwarded to
               :func:`create_output_transform`
@@ -391,7 +384,7 @@ class SirenVis(nn.Module):
         if meta_cfg is None:
             raise ValueError(
                 "Configuration must contain a 'meta' section with either "
-                "'h5_file' or 'ranges' to construct an AABox."
+                "'file' or 'ranges' to construct an AABox."
             )
         meta = AABox.from_hparams(meta_cfg)
 
