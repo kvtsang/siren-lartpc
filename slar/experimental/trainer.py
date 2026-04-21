@@ -10,6 +10,7 @@ from contextlib import nullcontext
 from typing import Dict, Any, Optional
 from tqdm.auto import tqdm
 
+from . import SirenVis
 from .factories import (
     create_dataloader,
     create_optimizer,
@@ -39,9 +40,8 @@ class SirenTrainer:
         )
 
         # -- Build components from factories ------------------------------
-        self.model = create_model(cfg).to(self.device)
-        self.loaders = create_data_loaders(**cfg["dataloader"])
-        self.loss_fn = create_instance(cfg["criterion"])
+        self.model = SirenVis.create(cfg['model']['siren']).to(device)
+        self.dataloader = create_dataloader(**cfg["dataloader"])
         self.optimizer = create_optimizer(self.model, cfg['optimizer'])
         
         if 'scheduler' in cfg:
@@ -49,8 +49,7 @@ class SirenTrainer:
         else:
             self.scheduler = None
 
-        self.logger = wandb if 'wandb' in cfg else None
-        self.histogram = self._make_histogram()
+        self.logger = create_logger(cfg.get('logger', None))
         
         # -- Trainer hyper-parameters -------------------------------------
         self.max_epochs = self.trainer_cfg.get("max_epochs", 100)
