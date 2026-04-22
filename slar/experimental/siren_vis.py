@@ -176,6 +176,25 @@ class SirenVis(nn.Module):
     # ------------------------------------------------------------------ #
     #  Forward
     # ------------------------------------------------------------------ #
+    def siren_at(self, x: torch.Tensor) -> torch.Tensor:
+        """Evaluate the SIREN output.  No out‐of‐bound check.
+
+        It returns the raw SIREN out with transformation nor scaling.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input coordinates of shape ``(N, in_features)`` in physical
+            (un‐normalised) space.
+
+        Returns
+        -------
+        torch.Tensor
+            SIREN output of shape ``(N, out_features)``.
+        """
+        x_norm = self._meta.norm_coord(x)
+        return self.siren(x_norm)
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Evaluate the model.  Out‐of‐bound points are zero‐filled.
 
@@ -199,8 +218,7 @@ class SirenVis(nn.Module):
             return output
 
         x_in = x[mask]
-        x_norm = self._meta.norm_coord(x_in)
-        siren_out = self.siren(x_norm)
+        siren_out = self.siren_at(x[mask])
         transformed = self.xfmr(siren_out)
         scaled = self.output_scale * transformed
 

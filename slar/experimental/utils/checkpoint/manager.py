@@ -69,7 +69,7 @@ Quick start
     from checkpoint_manager import CheckpointManager
 
     manager = CheckpointManager(
-        checkpoint_dir="./checkpoints",
+        dir="./checkpoints",
         save_every_n_epochs=10,
         metric_name="val_loss",
         metric_mode="min",
@@ -142,7 +142,7 @@ class CheckpointManager:
 
     Parameters
     ----------
-    checkpoint_dir : str | Path
+    dir : str | Path
         Root directory for all checkpoint files.  Created
         automatically (including parents) if it does not exist.
     save_every_n_epochs : int, default ``1``
@@ -266,7 +266,7 @@ class CheckpointManager:
 
     def __init__(
         self,
-        checkpoint_dir: str | Path,
+        dir: str | Path,
         save_every_n_epochs: int = 1,
         metric_name: str = "val_loss",
         metric_mode: Literal["min", "max"] = "min",
@@ -284,8 +284,8 @@ class CheckpointManager:
                 f"got '{metric_mode}'"
             )
 
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        self.dir = Path(dir)
+        self.dir.mkdir(parents=True, exist_ok=True)
 
         self.save_every_n_epochs = save_every_n_epochs
         self.metric_name = metric_name
@@ -434,7 +434,7 @@ class CheckpointManager:
             epoch % self.save_every_n_epochs == 0
         )
         numbered_path = (
-            self.checkpoint_dir / self._epoch_filename(epoch)
+            self.dir / self._epoch_filename(epoch)
             if save_numbered
             else None
         )
@@ -457,7 +457,7 @@ class CheckpointManager:
         # --- Dispatch disk I/O ------------------------------------
         write_task = _WriteTask(
             payload=payload,
-            checkpoint_dir=self.checkpoint_dir,
+            dir=self.dir,
             numbered_path=numbered_path,
             update_last_link=save_numbered,
             last_filename=self.LAST_FILENAME,
@@ -579,14 +579,14 @@ class CheckpointManager:
                 self._last_snapshot_epoch,
             )
             numbered_path = (
-                self.checkpoint_dir
+                self.dir
                 / self._epoch_filename(self._last_saved_epoch)
             )
             if numbered_path.exists():
                 _hardlink(
                     target=numbered_path,
                     link=(
-                        self.checkpoint_dir
+                        self.dir
                         / self.LAST_FILENAME
                     ),
                 )
@@ -595,7 +595,7 @@ class CheckpointManager:
             # link it.
             epoch = self._last_snapshot_epoch or 0
             final_path = (
-                self.checkpoint_dir
+                self.dir
                 / self._epoch_filename(epoch)
             )
             logger.info(
@@ -608,7 +608,7 @@ class CheckpointManager:
             _hardlink(
                 target=final_path,
                 link=(
-                    self.checkpoint_dir / self.LAST_FILENAME
+                    self.dir / self.LAST_FILENAME
                 ),
             )
             self._last_saved_epoch = epoch
@@ -782,7 +782,7 @@ class CheckpointManager:
             has improved yet, or the directory was cleared).
         """
         return self.load(
-            self.checkpoint_dir / self.BEST_FILENAME,
+            self.dir / self.BEST_FILENAME,
             model,
             optimizer,
             map_location,
@@ -818,7 +818,7 @@ class CheckpointManager:
             epoch, or :meth:`finalize` was not called).
         """
         return self.load(
-            self.checkpoint_dir / self.LAST_FILENAME,
+            self.dir / self.LAST_FILENAME,
             model,
             optimizer,
             map_location,
@@ -1000,7 +1000,7 @@ class _WriteTask:
     ----------
     payload : dict
         Fully-assembled, CPU-resident checkpoint dict.
-    checkpoint_dir : Path
+    dir : Path
         Root checkpoint directory.
     numbered_path : Path | None
         Destination for the numbered file, or ``None`` if this
@@ -1027,7 +1027,7 @@ class _WriteTask:
     def __init__(
         self,
         payload: Dict[str, Any],
-        checkpoint_dir: Path,
+        dir: Path,
         numbered_path: Optional[Path],
         update_last_link: bool,
         last_filename: str,
@@ -1038,7 +1038,7 @@ class _WriteTask:
         epoch: int,
     ) -> None:
         self.payload = payload
-        self.checkpoint_dir = checkpoint_dir
+        self.dir = dir
         self.numbered_path = numbered_path
         self.update_last_link = update_last_link
         self.last_filename = last_filename
@@ -1068,7 +1068,7 @@ class _WriteTask:
             _hardlink(
                 target=self.numbered_path,
                 link=(
-                    self.checkpoint_dir
+                    self.dir
                     / self.last_filename
                 ),
             )
@@ -1086,7 +1086,7 @@ class _WriteTask:
             _hardlink(
                 target=self.numbered_path,
                 link=(
-                    self.checkpoint_dir
+                    self.dir
                     / self.best_filename
                 ),
             )

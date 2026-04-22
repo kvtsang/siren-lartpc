@@ -20,6 +20,13 @@ class Logger:
 
     def log(self, *args, **kwargs):
         self._module.log(*args, **kwargs)
+    
+    @property
+    def run(self):
+        run = getattr(self._module, '_active_run', None)
+        if run is not None:
+            return run
+        return self._module.run
 
 class NullLogger:
     """

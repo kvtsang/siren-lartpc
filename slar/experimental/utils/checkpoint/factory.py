@@ -26,10 +26,10 @@ def create_checkpoint_manager(
     cfg : dict
         Keyword arguments to be passed to the
         ``CheckpointManager`` constructor. May contain
-        the key ``'checkpoint_dir'`` specifying the base
+        the key ``'dir'`` specifying the base
         directory for storing checkpoints. If not
         provided, defaults to the current working
-        directory. The ``'checkpoint_dir'`` value will be
+        directory. The ``'dir'`` value will be
         modified to append ``{project}/{name}`` before
         being passed to the constructor.
     project : str, optional
@@ -51,12 +51,12 @@ def create_checkpoint_manager(
     CheckpointManager
         An initialized instance with the checkpoint
         directory path set to
-        ``{checkpoint_dir}/{project}/{name}``.
+        ``{dir}/{project}/{name}``.
 
     Examples
     --------
     >>> cfg = {
-    ...     'checkpoint_dir': '/data/checkpoints',
+    ...     'dir': '/data/checkpoints',
     ...     'save_best': True,
     ...     'max_to_keep': 5,
     ... }
@@ -65,11 +65,11 @@ def create_checkpoint_manager(
     ...     project='my_project',
     ...     name='run_01',
     ... )
-    >>> print(manager.checkpoint_dir)
+    >>> print(manager.dir)
     /data/checkpoints/my_project/run_01
     """
     cfg = cfg.copy()
-    cfg.setdefault('checkpoint_dir', os.getcwd())
+    cfg.setdefault('dir', os.getcwd())
 
     if name is None:
         timestamp = datetime.datetime.now().strftime(
@@ -83,8 +83,8 @@ def create_checkpoint_manager(
         )
         name = f"{timestamp}_{random_suffix}"
 
-    cfg['checkpoint_dir'] = os.path.join(
-        cfg['checkpoint_dir'],
+    cfg['dir'] = os.path.join(
+        cfg['dir'],
         project,
         name 
     )

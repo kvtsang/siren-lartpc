@@ -2,7 +2,7 @@ import torch.nn as nn
 
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
-from .helper import create_instance
+from ..helper import create_instance
 
 def create_optimizer(
     model: nn.Module,

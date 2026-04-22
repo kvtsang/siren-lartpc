@@ -15,10 +15,19 @@ from .factories import (
     create_dataloader,
     create_optimizer,
     create_scheduler,
+    create_logger,
     create_checkpoint_manager,
 )
 
+def weighted_logit_mse_loss(logit_pred, p_hat, eps=1e-7):
+    # Clip to avoid inf in logit
+    p_hat = p_hat.clamp(eps, 1 - eps)
+    target_logit = torch.logit(p_hat)
+    w = p_hat * (1 - p_hat)
+    return (w * (logit_pred - target_logit) ** 2).mean()
+
 class SirenTrainer:
+
     """Trainer class for training a neural network model in PyTorch."""
     
     def __init__(self, cfg: Dict[str, Any]):
@@ -40,7 +49,7 @@ class SirenTrainer:
         )
 
         # -- Build components from factories ------------------------------
-        self.model = SirenVis.create(cfg['model']['siren']).to(device)
+        self.model = SirenVis.create(cfg['model']).to(self.device)
         self.dataloader = create_dataloader(**cfg["dataloader"])
         self.optimizer = create_optimizer(self.model, cfg['optimizer'])
         
@@ -50,52 +59,38 @@ class SirenTrainer:
             self.scheduler = None
 
         self.logger = create_logger(cfg.get('logger', None))
+        self.loss_fn = weighted_logit_mse_loss
         
         # -- Trainer hyper-parameters -------------------------------------
         self.max_epochs = self.trainer_cfg.get("max_epochs", 100)
         self.grad_clip_max_norm = self.trainer_cfg.get("grad_clip_max_norm", None)
         self.log_every_n_steps = self.trainer_cfg.get("log_every_n_steps", 50)
         self.val_every_n_epochs = self.trainer_cfg.get("val_every_n_epochs", 1)
-        self.log_histo_every_n_vals = self.trainer_cfg.get(
-            'log_histo_every_n_vals', 1
-        )
+        self.plot_every_n_vals = self.trainer_cfg.get("plot_every_n_vals", 1)
 
         # -- State tracking -----------------------------------------------
         self.current_epoch = 0
         self.global_step = 0
 
     # -- Helpers --------------------------------------------------------------
-    def _move_batch_to_device(self, batch: Dict[str, Any],) -> Dict[str, Any]:
+    def _move_batch_to_device(
+        self, batch: Tuple[torch.Tensor],
+    ) -> Tuple[torch.Tensor]:
         
         """
-        Convert and move only the keys listed in ``BATCH_TENSOR_KEYS`` to
-        ``self.device``. Remaining keys are passed through unchanged.
+        Convert and move batch to ``self.device``. 
         """
         
-        out = {}
-        for k, v in batch.items():
-            if k in self.BATCH_TENSOR_KEYS:
-                if  isinstance(v, np.ndarray):
-                    v = torch.from_numpy(v)
-                out[k] = v.to(self.device)
-            else:
-                out[k] = v
-        return out
+        return tuple(v.to(self.device) for v in batch)
 
-    def _compute_loss(self, batch: Dict[str, Any]) -> torch.Tensor:
-        """Forward pass → masked loss."""
-        out = self._forward(batch)
-        
-        target = batch["flash"]
-        target_mask = batch["flash_mask"]
-        loss = self.loss_fn(out[target_mask], target[target_mask])
+
+    def _compute_loss(self, batch: Tuple[torch.Tensor]) -> torch.Tensor:
+        coords, target = batch
+        out = self._forward(coords)
+        loss = self.loss_fn(out, target)
         
         return loss, out
 
-    def _log(self, metrics: Dict[str, Any], step: Optional[int] = None) -> None:
-        """Log *metrics* to the wandb-compatible logger (if configured)."""
-        if self.logger is not None:
-            self.logger.log(metrics, step=step)
 
     def _step_scheduler(self, metric: Optional[float] = None) -> None:
         """Step the LR scheduler, handling ReduceLROnPlateau specially."""
@@ -109,76 +104,10 @@ class SirenTrainer:
         else:
             self.scheduler.step()
 
-    def _forward(self, batch):
-        return MultiFlashHypothesis.apply(
-            0, batch["charge"], batch["charge_lengths"], self.model
-        )
+    def _forward(self, x: torch.Tensor):
+        return self.model.siren_at(x)
 
-    # -- Histogram ------------------------------------------------------------
-    def _make_histogram(self):
-        if 'histogram' not in self.cfg:
-            return None
-
-        h_cfg = self.cfg['histogram']
-        xmax = h_cfg.get('xmax', 100_000)
-        bins = h_cfg.get('bins', 100)
-
-        x_edges = np.logspace(1, np.log10(xmax), bins+1)
-        x_edges[0] = 0
-
-        return bh.Histogram(
-            bh.axis.Variable(x_edges),
-            storage=bh.storage.Mean(),
-        )
-
-    def _reset_histogram(self):
-        if self._on_histogram_epoch:
-            self.histogram.reset()
-        
-    def _fill_histogram(self, batch, output):
-        if not self._on_histogram_epoch:
-            return
-            
-        diff2 = (batch['flash'] - output.detach()) ** 2
-        mask = batch['flash_mask']
-        self.histogram.fill(
-            batch['flash'][mask].cpu(),
-            sample=diff2[mask].cpu(),
-        )
-
-    def _log_histogram(self):
-        if not self._on_histogram_epoch or self.logger is None:
-            return
-
-        xs = self.histogram.axes.centers[0]
-        ys = self.histogram.values()
-        
-        #table = self.logger.Table(
-        #    data=np.column_stack([xs, ys]),
-        #    columns=['flash_data', 'l2_loss'],
-        #)
-        #line = self.logger.plot.line(
-        #    table, 'flash_data', 'l2_loss',
-        #    title='Loss Profile',
-        #)
-        #self._log({'loss_profile' : line}, step=self.global_step)
-
-        fig, ax = plt.subplots()
-        ax.loglog(xs, ys)
-        ax.set_xlabel('flash data (p.e.)')
-        ax.set_ylabel('L2 loss')
-        ax.grid(True, which='both', ls='--', lw=0.5)
-        self._log({'loss_profile': wandb.Image(fig)}, step=self.global_step)
-        plt.close()
-
-    @property
-    def _on_histogram_epoch(self):
-        if self.histogram is None:
-            return False
-            
-        n = self.val_every_n_epochs * self.log_histo_every_n_vals
-        return (self.current_epoch + 1) % n == 0
-            
+           
     # -- Training / Evaluation loops -----------------------------------------
     def _run_train_epoch(self, pbar: tqdm) -> float:
         """Run one training epoch using a reusable progress bar."""
@@ -189,7 +118,7 @@ class SirenTrainer:
         pbar.reset()
         pbar.set_description(f"Epoch {self.current_epoch+1}/{self.max_epochs} [train]")
     
-        for batch in self.loaders["train"]:
+        for batch in self.dataloader:
             batch = self._move_batch_to_device(batch)
     
             loss, out = self._compute_loss(batch)
@@ -210,7 +139,7 @@ class SirenTrainer:
             pbar.update(1)
     
             if self.global_step % self.log_every_n_steps == 0:
-                self._log(
+                self.logger.log(
                     {
                         "train/step_loss": loss_val,
                         "lr": self.optimizer.param_groups[0]["lr"],
@@ -221,17 +150,19 @@ class SirenTrainer:
         return total_loss / max(num_batches, 1)
 
     @torch.no_grad()
-    def _run_eval_epoch(self, name: str, pbar: tqdm) -> float:
+    def _run_eval_epoch(self, pbar: tqdm) -> float:
         """Run one eval epoch using a reusable progress bar."""
         self.model.eval()
         total_loss = 0.0
         num_batches = 0
     
         pbar.reset()
-        pbar.set_description(f"Epoch {self.current_epoch+1}/{self.max_epochs} [{name}]")
+        pbar.set_description(
+            f"Epoch {self.current_epoch+1}/{self.max_epochs} [val]"
+        )
 
-        self._reset_histogram()
-        for batch in self.loaders[name]:
+        pbar.update(1)
+        for batch in self.dataloader:
             batch = self._move_batch_to_device(batch)
             loss, out = self._compute_loss(batch)
             loss_val = loss.item()
@@ -241,9 +172,6 @@ class SirenTrainer:
             pbar.set_postfix(loss=f"{loss_val:.6f}")
             pbar.update(1)
 
-            self._fill_histogram(batch, out)
-        self._log_histogram()
-        
         return total_loss / max(num_batches, 1)
         
     def validate(self) -> float:
@@ -251,22 +179,12 @@ class SirenTrainer:
             total=len(self.loaders["val"]), 
             desc="[val]", dynamic_ncols=True
         ) as pbar:
-            return self._run_eval_epoch("val", pbar)
+            return self._run_eval_epoch(pbar)
 
-    def test(self) -> float:
-        with tqdm(
-            total=len(self.loaders["test"]), 
-            desc="[test]", dynamic_ncols=True
-        ) as pbar:
-            return self._run_eval_epoch("test", pbar)
-        
+
     # -- Main entry point ----------------------------------------------------
     def fit(self) -> None:
-        if self.logger is not None:
-            ctx = self.logger.init(**self.cfg["wandb"])
-        else:
-            ctx = nullcontext()
-        with ctx:
+        with self.logger.init():
             self.checkpoint_manager = self._init_checkpoint_manager()
             self._fit()
 
@@ -276,37 +194,41 @@ class SirenTrainer:
     def _fit(self) -> None:
         n_params = sum(p.numel() for p in self.model.parameters())
         print(f"▸ Training on {self.device}  |  Parameters: {n_params:,}")
-        self._log({"model/parameters": n_params})
+        self.logger.log({"model/parameters": n_params})
     
         # -- Create reusable progress bars ----------------------------
         train_pbar = tqdm(
-            total=len(self.loaders["train"]),
+            total=len(self.dataloader),
             desc="[train]",
             leave=True,
             dynamic_ncols=True,
+            mininterval=1.,
         )
+
         val_pbar = tqdm(
-            total=len(self.loaders["val"]),
+            total=len(self.dataloader),
             desc="[val]",
             leave=True,
             dynamic_ncols=True,
+            mininterval=1.,
         )
-    
+
         for epoch in range(self.max_epochs):
             self.current_epoch = epoch
     
             # -- train --------------------------------------------
             train_loss = self._run_train_epoch(train_pbar)
-            self._log(
+            self.logger.log(
                 {"train/epoch_loss": train_loss, "epoch": epoch},
                 step=self.global_step,
             )
+
     
             # -- validate -----------------------------------------
             val_loss = None
             if (epoch + 1) % self.val_every_n_epochs == 0:
-                val_loss = self._run_eval_epoch("val", val_pbar)
-                self._log(
+                val_loss = self._run_eval_epoch(val_pbar)
+                self.logger.log(
                     {"val/epoch_loss": val_loss, "epoch": epoch},
                     step=self.global_step,
                 )
@@ -317,10 +239,10 @@ class SirenTrainer:
             # -- scheduler ----------------------------------------
             self._step_scheduler(val_loss)
     
-            # -- epoch summary ------------------------------------
+            # -- epoch summary -----------------------------------
             lr = self.optimizer.param_groups[0]["lr"]
-            self._log({'lr': lr}, step=self.global_step)
-    
+            self.logger.log({'lr': lr}, step=self.global_step)
+
         train_pbar.close()
         val_pbar.close()
         tqdm.write("✔ Training complete.")

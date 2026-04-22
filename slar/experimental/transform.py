@@ -9,7 +9,7 @@ from typing import Union, Dict, Tuple, Any
 import torch
 import torch.nn as nn
 
-from .utils.factory import create_instance
+from .utils.helper import create_instance
 
 
 class Identity(nn.Module):
@@ -33,6 +33,44 @@ class Identity(nn.Module):
 
     @classmethod
     def from_hparams(cls, hparams: dict) -> "Identity":
+        return cls()
+
+
+class Sigmoid(nn.Module):
+    """Functionally identical to torch.nn.Sigmoid with hparams support"""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.nn.functional.sigmoid(x)
+
+    def inverse(self) -> "Logit":
+        """Return the inverse transform."""
+        return Logit()
+
+    @property
+    def hparams(self) -> dict:
+        return { "class": _get_class_path(self) }
+
+    @classmethod
+    def from_hparams(cls, hparams: dict) -> "Sigmoid":
+        return cls()
+
+
+class Logit(nn.Module):
+    """Inverse of Sigmoid()"""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return torch.logit(x)
+
+    def inverse(self) -> "Sigmoid":
+        """Return the inverse transform."""
+        return Sigmoid()
+
+    @property
+    def hparams(self) -> dict:
+        return { "class": _get_class_path(self) }
+
+    @classmethod
+    def from_hparams(cls, hparams: dict) -> "Logit":
         return cls()
 
 
